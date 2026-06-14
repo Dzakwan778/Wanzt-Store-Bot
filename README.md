@@ -1,136 +1,169 @@
+<div align="center">
+
 # 🚀 Wanzt Store Bot
 
-Sistem Manajemen Toko Digital berbasis WhatsApp yang dilengkapi dashboard modern, manajemen produk, transaksi, broadcast otomatis, sistem admin multi-role, dan integrasi WhatsApp menggunakan Baileys.
+### WhatsApp Store Management System with Modern Dashboard
+
+Sistem manajemen toko digital berbasis WhatsApp yang dilengkapi Dashboard Modern, Product Management, Transaction System, Broadcast Automation, dan Multi-Level Administration.
+
+<p align="center">
+  <a href="https://github.com/Dzakwan778/Wanzt-Store-Bot/stargazers">
+    <img src="https://img.shields.io/github/stars/Dzakwan778/Wanzt-Store-Bot?style=for-the-badge&logo=github">
+  </a>
+  <a href="https://github.com/Dzakwan778/Wanzt-Store-Bot/network/members">
+    <img src="https://img.shields.io/github/forks/Dzakwan778/Wanzt-Store-Bot?style=for-the-badge&logo=github">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/Version-Latest-blue?style=for-the-badge">
+  </a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Node.js-18+-339933?style=flat-square&logo=node.js&logoColor=white">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black">
+  <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white">
+  <img src="https://img.shields.io/badge/Firebase-Ready-FFCA28?style=flat-square&logo=firebase&logoColor=black">
+</p>
+
+</div>
 
 ---
 
-## ✨ Fitur Utama
+## 📑 Table of Contents
 
-### 🤖 WhatsApp Bot
+- [Overview](#-overview)
+- [Features](#-features)
+- [Screenshots](#-screenshots)
+- [Technology Stack](#-technology-stack)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Project Structure](#-project-structure)
+- [Usage](#-usage)
+- [Roadmap](#-roadmap)
+- [Statistics](#-statistics)
+- [Developer](#-developer)
+- [License](#-license)
 
-- Login QR Code
-- Login Pairing Code
-- Auto Response Produk
-- Menu Otomatis
-- Katalog Produk
-- Template Pesan Kustom
-- Command Custom
-- Sistem Owner & Admin
-- Whitelist Group
-- Logging Pesan
+---
 
-### 🛍️ Manajemen Produk
+# 🌟 Overview
 
-- Tambah Produk
-- Edit Produk
-- Hapus Produk
-- Kategori Produk
-- Gambar Produk
-- Varian Produk
-- Harga Modal & Harga Jual
-- Tracking Pencarian Produk
+Wanzt Store Bot adalah platform manajemen toko digital berbasis WhatsApp yang menggabungkan Dashboard Modern, WhatsApp Automation, Product Management, Transaction Tracking, dan Broadcast System dalam satu aplikasi.
 
-### 💳 Manajemen Transaksi
+Dirancang untuk mempermudah operasional toko digital, reseller, panel store, maupun layanan berbasis WhatsApp.
 
-- Pencatatan Transaksi
-- Status Pending
-- Status Success
-- Status Failed
-- Riwayat Transaksi
-- Perhitungan Harga Jual
-- Perhitungan Harga Modal
+---
 
-### 📢 Broadcast Management
+# ✨ Features
 
-- Broadcast Manual
-- Broadcast Terjadwal
-- Broadcast Gambar
-- Broadcast Video
-- Target Berdasarkan Kategori
-- Excluded Number List
-- Delay Antar Pesan
-- Log Pengiriman
+## 🤖 WhatsApp Automation
 
-### 👥 Admin Management
+- QR Login
+- Pairing Code Login
+- Auto Reply
+- Multi Session
+- Custom Commands
+- Template Messages
+- Group Management
+- Contact Management
 
-- Login Dashboard
-- Multi Admin
-- Owner Role
-- Admin Role
+## 🛍️ Product Management
+
+- Add Product
+- Edit Product
+- Delete Product
+- Product Categories
+- Product Variants
+- Product Images
+- Product Analytics
+
+## 💰 Transaction System
+
+- Transaction History
+- Order Tracking
+- Revenue Monitoring
+- Cost Tracking
+- Profit Calculation
+- Order Status
+
+## 📢 Broadcast System
+
+- Text Broadcast
+- Image Broadcast
+- Video Broadcast
+- Scheduled Broadcast
+- Target Filtering
+- Delivery Logs
+
+## 👨‍💼 Admin Management
+
+- Owner Access
+- Admin Access
 - Permission Management
 - Session Authentication
-- Activity Log
+- Activity Logging
 
-### 📊 Dashboard Monitoring
+## 📊 Dashboard Analytics
 
-- Status Bot
-- Status WhatsApp
-- Statistik Produk
-- Statistik Transaksi
-- Statistik Broadcast
-- Monitoring Aktivitas
-
-### 🔐 Security
-
-- Session Token Authentication
-- Permission Based Access
-- Admin Activity Logging
-- Multi-Level Access Control
+- Bot Status
+- Product Statistics
+- Transaction Statistics
+- Broadcast Statistics
+- System Monitoring
 
 ---
 
-## 🏗️ Teknologi
+# 📸 Screenshots
+
+> Tambahkan screenshot dashboard pada bagian ini.
+
+```text
+assets/
+├── dashboard.png
+├── products.png
+├── transactions.png
+└── settings.png
+```
+
+Contoh:
+
+<p align="center">
+<img width="100%" src="./assets/dashboard.png">
+</p>
+
+---
+
+# 🛠 Technology Stack
 
 ### Frontend
 
-- React 19
-- TypeScript
-- Vite
-- Tailwind CSS
-- Motion
-- Lucide React
+| Technology | Usage |
+|------------|--------|
+| React 19 | UI Framework |
+| TypeScript | Type Safety |
+| Tailwind CSS | Styling |
+| Vite | Build Tool |
+| Motion | Animation |
 
 ### Backend
 
-- Node.js
-- Express
+| Technology | Usage |
+|------------|--------|
+| Node.js | Runtime |
+| Express | API Server |
+| Baileys | WhatsApp Gateway |
 
-### WhatsApp Gateway
+### Database
 
-- Baileys
-
-### Cloud & Database
-
-- Firebase (Blueprint tersedia)
-- Firestore Rules
-- JSON Database Local
-
----
-
-## 📂 Struktur Project
-
-```text
-Wanzt-Store-Bot
-│
-├── src/
-│   ├── App.tsx
-│   ├── firebase-db.ts
-│   ├── types.ts
-│   └── ...
-│
-├── server.ts
-├── package.json
-├── firestore.rules
-├── firebase-blueprint.json
-├── vite.config.ts
-├── tsconfig.json
-├── .env.example
-└── README.md
-```
+| Technology | Usage |
+|------------|--------|
+| Firebase | Cloud Storage |
+| Firestore | Database |
+| JSON | Local Storage |
 
 ---
 
-## 📦 Instalasi
+# ⚙️ Installation
 
 ### Clone Repository
 
@@ -139,7 +172,7 @@ git clone https://github.com/Dzakwan778/Wanzt-Store-Bot.git
 cd Wanzt-Store-Bot
 ```
 
-### Install Dependency
+### Install Dependencies
 
 ```bash
 npm install
@@ -147,52 +180,38 @@ npm install
 
 ---
 
-## ⚙️ Konfigurasi Environment
+# 🔧 Configuration
 
-Salin file:
-
-```bash
-.env.example
-```
-
-menjadi:
+Copy environment file:
 
 ```bash
-.env
+cp .env.example .env
 ```
 
-Lalu sesuaikan:
+Edit:
 
 ```env
 GEMINI_API_KEY=YOUR_API_KEY
-APP_URL=YOUR_APP_URL
+APP_URL=YOUR_URL
 ```
 
 ---
 
-## ▶️ Menjalankan Project
+# 🚀 Usage
 
-### Development Mode
+Development Mode:
 
 ```bash
 npm run dev
 ```
 
-Server akan berjalan pada:
-
-```text
-http://localhost:3000
-```
-
----
-
-### Production Build
+Build Project:
 
 ```bash
 npm run build
 ```
 
-Menjalankan hasil build:
+Production Mode:
 
 ```bash
 npm start
@@ -200,202 +219,114 @@ npm start
 
 ---
 
-## 📱 Koneksi WhatsApp
-
-Sistem mendukung:
-
-### QR Code Login
-
-1. Jalankan server
-2. Buka Dashboard
-3. Scan QR yang muncul
-4. Tunggu hingga status Connected
-
-### Pairing Code
-
-1. Masukkan nomor WhatsApp
-2. Generate Pairing Code
-3. Masukkan kode pada WhatsApp
-4. Tunggu koneksi berhasil
-
----
-
-## 🛒 Sistem Produk
-
-Setiap produk mendukung:
-
-- Nama Produk
-- Kategori
-- Deskripsi
-- Gambar
-- Varian Produk
-- Harga Modal
-- Harga Jual
-- Stok
-
-Contoh:
+# 📂 Project Structure
 
 ```text
-Netflix Premium
-
-├── 1 Bulan Shared
-├── 1 Bulan Private
-├── 3 Bulan Private
-└── 12 Bulan Private
+Wanzt-Store-Bot
+│
+├── src
+│   ├── components
+│   ├── pages
+│   ├── hooks
+│   ├── firebase-db.ts
+│   ├── types.ts
+│   └── App.tsx
+│
+├── server.ts
+├── package.json
+├── firestore.rules
+├── firebase-blueprint.json
+├── vite.config.ts
+├── tsconfig.json
+└── README.md
 ```
 
 ---
 
-## 📋 Sistem Transaksi
+# 📈 Roadmap
 
-Status transaksi:
-
-| Status | Keterangan |
-|----------|------------|
-| Pending | Menunggu proses |
-| Success | Berhasil diselesaikan |
-| Failed | Gagal diproses |
-
-Setiap transaksi menyimpan:
-
-- ID Pesanan
-- Nama Produk
-- Nomor Pembeli
-- Metode Pembayaran
-- Harga Modal
-- Harga Jual
-- Timestamp
+- [x] WhatsApp Integration
+- [x] Product Management
+- [x] Transaction System
+- [x] Broadcast Management
+- [x] Role Management
+- [x] Dashboard Monitoring
+- [ ] Payment Gateway
+- [ ] CRM Integration
+- [ ] AI Customer Service
+- [ ] Multi Store Support
+- [ ] Mobile Application
 
 ---
 
-## 📢 Broadcast Terjadwal
+# 📊 Statistics
 
-Fitur broadcast mendukung:
+<div align="center">
 
-- Text Message
-- Image Message
-- Video Message
-- Scheduled Delivery
-- Target Filtering
-- Delivery Logs
+### GitHub Statistics
 
----
+<img src="https://github-readme-stats.shion.dev/api?username=Dzakwan778&theme=github_dark&hide_border=true&include_all_commits=true"/>
 
-## 👨‍💻 Sistem Role
+<br>
 
-### OWNER
+<img src="https://streak-stats.demolab.com/?user=Dzakwan778&theme=github_dark&hide_border=true"/>
 
-Akses penuh ke:
+<br>
 
-- Produk
-- Broadcast
-- Transaksi
-- Pengaturan
-- Admin Management
-- Aktivitas Sistem
+<img src="https://github-readme-stats.shion.dev/api/top-langs/?username=Dzakwan778&theme=github_dark&hide_border=true&layout=compact"/>
 
-### ADMIN
-
-Akses berdasarkan permission yang diberikan Owner.
+</div>
 
 ---
 
-## 🔧 Script NPM
+# 👨‍💻 Developer
+
+<div align="center">
+
+<img src="https://github.com/Dzakwan778.png" width="120" style="border-radius:50%;">
+
+## Dzakwan778
+
+Full Stack Developer & WhatsApp Automation Enthusiast
+
+<a href="https://github.com/Dzakwan778">
+<img src="https://img.shields.io/badge/GitHub-Dzakwan778-181717?style=for-the-badge&logo=github">
+</a>
+
+</div>
+
+---
+
+# 🤝 Contributions
+
+Contributions are always welcome.
 
 ```bash
-npm run dev
+Fork → Create Branch → Commit → Push → Pull Request
 ```
-
-Menjalankan development server.
-
-```bash
-npm run build
-```
-
-Build frontend dan backend.
-
-```bash
-npm start
-```
-
-Menjalankan production server.
-
-```bash
-npm run lint
-```
-
-TypeScript validation.
-
-```bash
-npm run clean
-```
-
-Membersihkan folder build.
 
 ---
 
-## 💾 Database
+# ⭐ Support
 
-Project menggunakan kombinasi:
+Jika project ini membantu:
 
-### Local Database
+🌟 Berikan Star pada repository
 
-```text
-database.json
-db_products.json
-db_categories.json
-db_transactions.json
-db_commands.json
-db_settings.json
-db_scheduled_broadcasts.json
-```
+🍴 Fork repository
 
-### Cloud Database
-
-- Firebase
-- Firestore
-
-(Struktur sudah disiapkan dan dapat diaktifkan sesuai kebutuhan.)
+📢 Bagikan kepada teman
 
 ---
 
-## 📌 Status Project
+# 📄 License
 
-🟢 Aktif Dikembangkan
-
-Roadmap:
-
-- Firebase Full Sync
-- Multi Device Support
-- Payment Gateway Integration
-- Advanced Analytics
-- Customer CRM Module
+This project is developed for educational purposes and operational needs of Wanzt Store.
 
 ---
 
-## 🤝 Kontribusi
+<div align="center">
 
-Pull Request dan Issue sangat diterima.
+### Made with ❤️ by Dzakwan778
 
-1. Fork repository
-2. Buat branch baru
-3. Commit perubahan
-4. Push branch
-5. Buat Pull Request
-
----
-
-## 👨‍💻 Developer
-
-**Dzakwan778**
-
-GitHub:
-https://github.com/Dzakwan778
-
----
-
-## 📄 License
-
-Project ini dibuat untuk kebutuhan operasional Wanzt Store dan pembelajaran pengembangan sistem manajemen WhatsApp berbasis dashboard.
-
-Silakan gunakan dan modifikasi sesuai kebutuhan.
+</div>
