@@ -1384,12 +1384,33 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
     }
 
     if (matchedCommandObj) {
-      matchedCommand = lowerCommandText;
-      statusText = `Sent ${matchedCommandObj.trigger.split(",")[0].trim()}`;
-      responseText = format(matchedCommandObj.response, commandVars);
-      hasImage = matchedCommandObj.mediaType === "image";
-      mediaUrlToSend = matchedCommandObj.mediaUrl || "";
-      mediaTypeToSend = matchedCommandObj.mediaType || "none";
+      const isGroup = from.endsWith("@g.us");
+      if (matchedCommandObj.isGroupOnly && !isGroup) {
+        matchedCommand = "group_restricted";
+        statusText = "Group Only Intercept";
+        responseText = "⚠️ Maaf, command ini diatur khusus agar hanya dapat digunakan di dalam grup WhatsApp saja!";
+        hasImage = false;
+        mediaUrlToSend = "";
+        mediaTypeToSend = "none";
+      } else {
+        matchedCommand = lowerCommandText;
+        statusText = `Sent ${matchedCommandObj.trigger.split(",")[0].trim()}`;
+        
+        let responseTemplate = matchedCommandObj.response;
+        let commandMediaUrl = matchedCommandObj.mediaUrl || "";
+        let commandMediaType = matchedCommandObj.mediaType || "none";
+        
+        if (matchedCommandObj.id === "owner" && settings.ownerTemplate) {
+          responseTemplate = settings.ownerTemplate;
+          commandMediaUrl = settings.ownerImageUrl || "";
+          commandMediaType = settings.ownerImageUrl ? "image" : "none";
+        }
+        
+        responseText = format(responseTemplate, commandVars);
+        hasImage = commandMediaType === "image";
+        mediaUrlToSend = commandMediaUrl;
+        mediaTypeToSend = commandMediaType;
+      }
     } else if (isGreeting) {
       matchedCommand = "greeting";
       statusText = "Sent Welcome";
@@ -2958,7 +2979,7 @@ function getAdminsList(db: any) {
     db.settings.admins = [
       {
         id: "OWNER-01",
-        username: "owner",
+        username: "wanma2",
         passwordHash: defaultOwnerPasswordHash,
         role: "OWNER",
         isActive: true,
@@ -2977,6 +2998,13 @@ function getAdminsList(db: any) {
       }
     ];
     botManager.saveDb(db);
+  } else {
+    // If the database has already been initialized, ensure the OWNER's username is updated to wanma2
+    const owner = db.settings.admins.find((a: any) => a.role === "OWNER");
+    if (owner && owner.username !== "wanma2") {
+      owner.username = "wanma2";
+      botManager.saveDb(db);
+    }
   }
   return db.settings.admins;
 }

@@ -154,4 +154,6 @@ export interface BotCommand {
   mediaUrl?: string;
   mediaType: "none" | "image" | "video";
   description?: string;
+  category?: string;
+  isGroupOnly?: boolean;
 }

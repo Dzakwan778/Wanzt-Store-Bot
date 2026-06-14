@@ -1,3 +1,5 @@
+// push Minggu, 14 Juni 2026
+
 import React, { useState, useEffect, useRef } from "react";
 import { 
   Smartphone, 
@@ -371,6 +373,9 @@ export default function App() {
   const [commandDescription, setCommandDescription] = useState("");
   const [commandMediaType, setCommandMediaType] = useState<"none" | "image" | "video">("none");
   const [commandMediaUrl, setCommandMediaUrl] = useState("");
+  const [commandCategory, setCommandCategory] = useState("Kustom Baru");
+  const [commandIsGroupOnly, setCommandIsGroupOnly] = useState(false);
+  const [commandsViewTab, setCommandsViewTab] = useState<"custom" | "system">("custom");
   const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
   const [mediaUploadLoading, setMediaUploadLoading] = useState(false);
 
@@ -895,6 +900,14 @@ export default function App() {
               response: finalSettings.listTemplate || c.response
             };
           }
+          if (c.id === "owner") {
+            return {
+              ...c,
+              response: finalSettings.ownerTemplate || c.response,
+              mediaUrl: finalSettings.ownerImageUrl || c.mediaUrl,
+              mediaType: finalSettings.ownerImageUrl ? "image" : "none"
+            };
+          }
           return c;
         });
       }
@@ -904,6 +917,7 @@ export default function App() {
         const payCmd = updatedCommands.find(c => c.id === "payment");
         const menuCmd = updatedCommands.find(c => c.id === "menu");
         const listCmd = updatedCommands.find(c => c.id === "list");
+        const ownerCmd = updatedCommands.find(c => c.id === "owner");
         const syncSettings = { ...finalSettings };
         if (payCmd) {
           syncSettings.paymentQrisUrl = payCmd.mediaType === "image" ? payCmd.mediaUrl : "";
@@ -916,6 +930,10 @@ export default function App() {
         }
         if (listCmd) {
           syncSettings.listTemplate = listCmd.response;
+        }
+        if (ownerCmd) {
+          syncSettings.ownerImageUrl = ownerCmd.mediaType === "image" ? ownerCmd.mediaUrl : "";
+          syncSettings.ownerTemplate = ownerCmd.response;
         }
         finalSettings = syncSettings;
       }
@@ -992,7 +1010,9 @@ export default function App() {
       response: commandResponse,
       description: commandDescription,
       mediaType: commandMediaType,
-      mediaUrl: commandMediaUrl
+      mediaUrl: commandMediaUrl,
+      category: commandCategory,
+      isGroupOnly: commandIsGroupOnly
     };
 
     const updated = [...commands, newCmd];
@@ -1005,6 +1025,8 @@ export default function App() {
     setCommandDescription("");
     setCommandMediaType("none");
     setCommandMediaUrl("");
+    setCommandCategory("Kustom Baru");
+    setCommandIsGroupOnly(false);
   };
 
   const handleUpdateCommand = (e: React.FormEvent) => {
@@ -1047,7 +1069,9 @@ export default function App() {
       response: commandResponse,
       description: commandDescription,
       mediaType: commandMediaType,
-      mediaUrl: commandMediaUrl
+      mediaUrl: commandMediaUrl,
+      category: commandCategory,
+      isGroupOnly: commandIsGroupOnly
     };
 
     const updated = commands.map(c => c.id === editingCommand.id ? updatedCmd : c);
@@ -1060,6 +1084,8 @@ export default function App() {
     setCommandDescription("");
     setCommandMediaType("none");
     setCommandMediaUrl("");
+    setCommandCategory("Kustom Baru");
+    setCommandIsGroupOnly(false);
   };
 
   const handleDeleteCommand = (id: string, trigger: string) => {
@@ -1843,8 +1869,23 @@ export default function App() {
       return;
     }
 
+    const cleanUser = adminFormUsername.trim().toLowerCase();
+    if (cleanUser.length < 3) {
+      setAdminFormError("Username minimal 3 karakter");
+      return;
+    }
+
+    // Check duplicate
+    const isDuplicate = adminsList.some(
+      (a) => a.username.toLowerCase() === cleanUser && a.id !== editingAdmin?.id
+    );
+    if (isDuplicate) {
+      setAdminFormError("Username ini sudah digunakan oleh admin lain");
+      return;
+    }
+
     const payload = {
-      username: adminFormUsername,
+      username: cleanUser,
       password: adminFormPassword || undefined,
       role: "ADMIN" as const,
       isActive: adminFormIsActive,
@@ -3868,6 +3909,8 @@ export default function App() {
                           setCommandDescription("");
                           setCommandMediaType("none");
                           setCommandMediaUrl("");
+                          setCommandCategory("Kustom Baru");
+                          setCommandIsGroupOnly(false);
                         }}
                         className="text-xs bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center gap-1.5 shadow-sm border border-slate-705 hover:border-slate-800 transition-all cursor-pointer font-sans"
                       >
@@ -4082,6 +4125,43 @@ export default function App() {
                           </div>
                         </div>
 
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-150 pt-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">🏷️ Kategori Command</label>
+                            <select
+                              value={commandCategory}
+                              onChange={(e) => setCommandCategory(e.target.value)}
+                              className="w-full text-xs border border-slate-200 focus:border-slate-400 focus:outline-[0px] rounded-xl px-3 py-2.5 bg-white shadow-xs cursor-pointer"
+                            >
+                              <option value="Kustom Baru">✨ Kustom Baru</option>
+                              <option value="Utama">🌙 Utama / Navigasi</option>
+                              <option value="Informasi">ℹ️ Informasi / Bantuan</option>
+                              <option value="Layanan">🚀 Layanan / Produk</option>
+                              <option value="Promo / Penjualan">📢 Promo / Penjualan</option>
+                              <option value="Grup Administrasi">👥 Grup Administrasi</option>
+                              <option value="Lainnya">📦 Lainnya</option>
+                            </select>
+                            <p className="text-[10px] text-slate-400 mt-1">Mengelompokkan menu agar lebih mudah dicari dan dikelola di dashboard.</p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">👥 Penggunaan Ruang Lingkup</label>
+                            <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 shadow-xs">
+                              <input
+                                type="checkbox"
+                                id="isGroupOnlyCheckbox"
+                                checked={commandIsGroupOnly}
+                                onChange={(e) => setCommandIsGroupOnly(e.target.checked)}
+                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                              />
+                              <label htmlFor="isGroupOnlyCheckbox" className="text-xs font-semibold text-slate-755 cursor-pointer select-none">
+                                Batasi penggunaan Hanya di Grup (Group Only)
+                              </label>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1">Jika dicentang, command hanya merespon di grup whitelisted dan menolak chat pribadi.</p>
+                          </div>
+                        </div>
+
                         <div>
                           <div className="flex justify-between items-center mb-1.5">
                             <label className="block text-xs font-bold text-slate-700">Respon Pesan Teks</label>
@@ -4202,82 +4282,195 @@ export default function App() {
                     </motion.div>
                   )}
 
-                  {/* List of Dynamic Commands */}
-                  <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
-                    <div className="bg-slate-50 border-b border-slate-200 p-4 flex flex-col md:flex-row md:items-center justify-between gap-2">
-                      <h4 className="font-bold text-slate-950 text-xs tracking-tight">DAFTAR COMMAND KUSTOM</h4>
-                      <span className="text-[10px] text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg font-medium self-start md:self-auto">
-                        ℹ️ Kelola respon command kustom buatan Anda di bawah ini. Untuk mengedit pesan sistem bawaan (Sapaan, Menu, Pembayaran, Kontak, dll.), silakan gunakan tab "Template Pesan & Auto-Response".
-                      </span>
-                    </div>
+                  {/* Tab Selector for Custom / System Commands */}
+                  <div className="flex gap-2 mb-5 bg-slate-100 p-1 rounded-xl border border-slate-200 max-w-xs">
+                    <button
+                      type="button"
+                      onClick={() => setCommandsViewTab("custom")}
+                      className={`flex-1 py-1.5 px-3 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        commandsViewTab === "custom" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                      Command Kustom
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCommandsViewTab("system")}
+                      className={`flex-1 py-1.5 px-3 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        commandsViewTab === "system" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <Terminal className="w-3.5 h-3.5 text-indigo-505" />
+                      Command Sistem
+                    </button>
+                  </div>
 
-                    <div className="divide-y divide-slate-150">
-                      {commands.filter(c => !["menu", "list", "payment", "owner", "order"].includes(c.id)).length === 0 ? (
-                        <div className="p-8 text-center text-slate-400">
-                          <Zap className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-xs">Belum ada command kustom yang terdaftar.</p>
+                  {commandsViewTab === "custom" ? (
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                      <div className="bg-slate-50 border-b border-slate-200 p-4 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-xs tracking-tight uppercase">Daftar Command Kustom Anda</h4>
+                          <p className="text-[10px] text-slate-500 mt-0.5">Kelola keyword trigger dinamis dan respon spesifik yang Anda definisikan sendiri.</p>
                         </div>
-                      ) : (
-                        commands.filter(c => !["menu", "list", "payment", "owner", "order"].includes(c.id)).map((cmd) => (
-                          <div key={cmd.id} className="p-4 hover:bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all">
-                            <div className="flex-1 space-y-1">
+                        <span className="text-[10px] text-indigo-600 bg-indigo-55/10 border border-indigo-100 px-2.5 py-1 rounded-lg font-bold self-start md:self-auto">
+                          Aktif: {commands.filter(c => !["menu", "list", "payment", "owner", "order"].includes(c.id)).length} Command
+                        </span>
+                      </div>
+
+                      <div className="divide-y divide-slate-150">
+                        {commands.filter(c => !["menu", "list", "payment", "owner", "order"].includes(c.id)).length === 0 ? (
+                          <div className="p-8 text-center text-slate-400 bg-slate-50/20">
+                            <Zap className="w-8 h-8 mx-auto mb-2 opacity-50 text-slate-400" />
+                            <p className="text-xs font-semibold">Belum ada command kustom yang dibuat.</p>
+                            <p className="text-[10px] text-slate-400 mt-1 max-w-xs mx-auto">Klik tombol "Tambah Command Baru" di atas untuk menambahkan chatbot auto-response Anda sendiri.</p>
+                          </div>
+                        ) : (
+                          commands.filter(c => !["menu", "list", "payment", "owner", "order"].includes(c.id)).map((cmd) => (
+                            <div key={cmd.id} className="p-4 hover:bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all border-l-4 border-l-slate-300 hover:border-l-indigo-500">
+                              <div className="flex-1 space-y-1">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {cmd.trigger.split(",").map((trig, idx) => (
+                                    <span key={idx} className="bg-slate-100 font-mono font-bold text-xs select-all text-slate-805 border border-slate-200 px-2.5 py-0.5 rounded-md flex items-center gap-1">
+                                      <span className="text-slate-400 font-semibold select-none">. / !</span>
+                                      {trig.trim()}
+                                    </span>
+                                  ))}
+                                  
+                                  <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-0.5 shadow-xs">
+                                    🏷️ {cmd.category || "Kustom Baru"}
+                                  </span>
+
+                                  {cmd.isGroupOnly ? (
+                                    <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-0.5 shadow-xs">
+                                      👥 Khusus Grup
+                                    </span>
+                                  ) : (
+                                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-0.5 shadow-xs">
+                                      🌍 Semua Chat (Grup/Pribadi)
+                                    </span>
+                                  )}
+
+                                  {cmd.description && (
+                                    <span className="text-slate-500 text-[10px] font-semibold px-1 rounded bg-slate-50 border border-slate-150">{cmd.description}</span>
+                                  )}
+                                  {cmd.mediaType !== "none" && (
+                                    <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[9px] font-bold px-1.5 py-0.5 rounded-sm flex items-center gap-1">
+                                      {cmd.mediaType === "image" ? <Image className="w-3 h-3" /> : <Video className="w-3 h-3" />}
+                                      Media {cmd.mediaType === "image" ? "Caption" : "Video"}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-slate-600 text-xs font-sans whitespace-pre-wrap max-w-2xl line-clamp-2 mt-2 leading-relaxed font-normal bg-slate-50/50 border border-slate-100 rounded-lg p-2 font-mono">
+                                  {cmd.response}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingCommand(cmd);
+                                    setIsAddingCommand(false);
+                                    setCommandTrigger(cmd.trigger);
+                                    setCommandResponse(cmd.response);
+                                    setCommandDescription(cmd.description || "");
+                                    setCommandMediaType(cmd.mediaType);
+                                    setCommandMediaUrl(cmd.mediaUrl || "");
+                                    setCommandCategory(cmd.category || "Kustom Baru");
+                                    setCommandIsGroupOnly(!!cmd.isGroupOnly);
+                                  }}
+                                  className="p-2 border border-slate-200 hover:border-slate-300 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition-all cursor-pointer bg-white"
+                                  title="Edit detail command"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCommand(cmd.id, cmd.trigger)}
+                                  className="p-2 border border-red-150 hover:border-red-250 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700 transition-all cursor-pointer bg-white"
+                                  title="Hapus command"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+                      <div className="bg-slate-50 border-b border-slate-200 p-4 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-xs tracking-tight uppercase">Daftar Command Sistem / Bawaan</h4>
+                          <p className="text-[10px] text-slate-500 mt-0.5">Reference daftar command internal fungsional yang otomatis dikelola oleh server bot WhatsApp Anda.</p>
+                        </div>
+                        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-150 px-2.5 py-1 rounded-lg font-bold self-start md:self-auto flex items-center gap-1">
+                          👑 Total: 15 Command
+                        </span>
+                      </div>
+
+                      <div className="divide-y divide-slate-150">
+                        {[
+                          { trigger: "menu", category: "Utama", isGroupOnly: false, target: "Semua", desc: "Menampilkan sapaan sambutan dan daftar menu utama bot." },
+                          { trigger: "list", category: "Utama / Katalog", isGroupOnly: false, target: "Semua", desc: "Menampilkan ringkasan daftar katalog produk / layanan." },
+                          { trigger: "payment, bayar, qris", category: "Utama / Transaksi", isGroupOnly: true, target: "Semua", desc: "Menampilkan instruksi transfer pembayaran, detail akun bank, & link QRIS dinamis." },
+                          { trigger: "owner", category: "Utama", isGroupOnly: false, target: "Semua", desc: "Menampilkan informasi kontak WhatsApp & tautan resmi owner Resmi." },
+                          { trigger: "tutor [nama_produk]", category: "Utama / Bantuan", isGroupOnly: false, target: "Semua", desc: "Mendapatkan petunjuk pendaftaran atau tutorial pemakaian produk terkait di obrolan." },
+                          { trigger: "proses", category: "Administrasi Transaksi", isGroupOnly: true, target: "Admin & Owner", desc: "Memulai proses transaksi pembelian (gunakan dengan me-reply pesan order)." },
+                          { trigger: "selesai", category: "Administrasi Transaksi", isGroupOnly: true, target: "Admin & Owner", desc: "Menyelesaikan transaksi aktif pembeli, mengurangi stok, serta mengirimkan struk sukses." },
+                          { trigger: "gagal", category: "Administrasi Transaksi", isGroupOnly: true, target: "Admin & Owner", desc: "Membatalkan/menggagalkan transaksi pembeli dan melepaskan kembali stok." },
+                          { trigger: "kick", category: "Administrasi Grup", isGroupOnly: true, target: "Admin & Owner", desc: "Mengeluarkan anggota grup dari ruang obrolan (gunakan dengan me-reply pesanan atau sebut nomor)." },
+                          { trigger: "add", category: "Administrasi Grup", isGroupOnly: true, target: "Admin & Owner", desc: "Menambahkan nomor baru secara langsung ke dalam Whitelist grup whatsapp." },
+                          { trigger: "close", category: "Administrasi Grup", isGroupOnly: true, target: "Admin & Owner", desc: "Mengubah setelan grup obrolan agar hanya Admin yang diperkenankan mengirim chat obrolan." },
+                          { trigger: "open", category: "Administrasi Grup", isGroupOnly: true, target: "Admin & Owner", desc: "Membuka kembali setelan grup obrolan agar seluruh peserta dapat mengirim pesan obrolan." },
+                          { trigger: "online", category: "Informasi Grup", isGroupOnly: true, target: "Admin & Owner", desc: "Mendeteksi serta me-list keaktifan dan seluruh username status peserta online di grup." },
+                          { trigger: "idgrup", category: "Utilitas Owner", isGroupOnly: true, target: "Owner dan Admin", desc: "Mendapatkan ID JID grup whatsapp secara instan untuk kebutuhan whitelisted." },
+                          { trigger: "bcadd", category: "Utilitas Owner", isGroupOnly: false, target: "Owner dan Admin", desc: "Menambahkan ID JID grup saat ini sebagai target penerima broadcast siaran promo." },
+                        ].map((sysCmd, idx) => (
+                          <div key={idx} className="p-4 hover:bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-3 transition-colors border-l-4 border-l-indigo-100 hover:border-l-indigo-400">
+                            <div className="space-y-1.5 flex-1">
                               <div className="flex flex-wrap items-center gap-1.5">
-                                {cmd.trigger.split(",").map((trig, idx) => (
-                                  <span key={idx} className="bg-slate-100 font-mono font-bold text-xs select-all text-slate-805 border border-slate-200 px-2.5 py-0.5 rounded-md flex items-center gap-1">
-                                    <span className="text-slate-400 font-semibold select-none">. / !</span>
+                                {sysCmd.trigger.split(",").map((trig, sIdx) => (
+                                  <span key={sIdx} className="bg-indigo-50/70 font-mono font-bold text-xs text-indigo-800 border border-indigo-100 px-2 py-0.5 rounded-md flex items-center gap-0.5 shadow-3xs">
+                                    <span className="text-indigo-400 select-none">. / !</span>
                                     {trig.trim()}
                                   </span>
                                 ))}
-                                
-                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-0.5 shadow-xs">
-                                  ✨ Kustom Baru
+
+                                <span className="bg-indigo-100/60 text-indigo-700 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-0.5">
+                                  ⚙️ Bawaan
                                 </span>
 
-                                {cmd.description && (
-                                  <span className="text-slate-500 text-[10px] font-semibold">{cmd.description}</span>
-                                )}
-                                {cmd.mediaType !== "none" && (
-                                  <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[9px] font-bold px-1.5 py-0.5 rounded-sm flex items-center gap-1">
-                                    {cmd.mediaType === "image" ? <Image className="w-3 h-3" /> : <Video className="w-3 h-3" />}
-                                    Media {cmd.mediaType === "image" ? "Caption" : "Video"}
+                                <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                                  📂 {sysCmd.category}
+                                </span>
+
+                                {sysCmd.isGroupOnly ? (
+                                  <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-0.5">
+                                    👥 Khusus Grup
+                                  </span>
+                                ) : (
+                                  <span className="bg-teal-50 text-teal-700 border border-teal-200 text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-0.5">
+                                    🌍 Semua Chat
                                   </span>
                                 )}
+
+                                <span className="bg-amber-55 text-amber-700 border border-amber-200 text-[10px] font-semibold px-1.5 py-0.5 rounded-md">
+                                  🛡️ Role: {sysCmd.target}
+                                </span>
                               </div>
-                              <p className="text-slate-600 text-xs font-sans whitespace-pre-wrap max-w-2xl line-clamp-2 mt-2 leading-relaxed font-normal bg-slate-50/50 border border-slate-100 rounded-lg p-2 font-mono">
-                                {cmd.response}
+                              <p className="text-slate-500 text-xs font-sans font-normal max-w-3xl leading-relaxed">
+                                {sysCmd.desc}
                               </p>
                             </div>
-
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button
-                                onClick={() => {
-                                  setEditingCommand(cmd);
-                                  setIsAddingCommand(false);
-                                  setCommandTrigger(cmd.trigger);
-                                  setCommandResponse(cmd.response);
-                                  setCommandDescription(cmd.description || "");
-                                  setCommandMediaType(cmd.mediaType);
-                                  setCommandMediaUrl(cmd.mediaUrl || "");
-                                }}
-                                className="p-2 border border-slate-200 hover:border-slate-300 rounded-lg hover:bg-white text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
-                                title="Edit detail command"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                              
-                              <button
-                                onClick={() => handleDeleteCommand(cmd.id, cmd.trigger)}
-                                className="p-2 border border-red-150 hover:border-red-250 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700 transition-all cursor-pointer"
-                                title="Hapus command"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
                           </div>
-                        ))
-                      )}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </motion.div>
               )}
 
@@ -8429,7 +8622,7 @@ export default function App() {
                     <input
                       type="text"
                       required
-                      disabled={!!editingAdmin}
+                      disabled={editingAdmin?.role === "OWNER"}
                       placeholder="Masukkan nama pengguna (eg: andi)"
                       value={adminFormUsername}
                       onChange={(e) => setAdminFormUsername(e.target.value.toLowerCase().replace(/\s+/g, ""))}
