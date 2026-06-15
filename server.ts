@@ -72,6 +72,63 @@ function resolveLidToPn(jid: string): string {
   return jid;
 }
 
+function jidNormalizedUser(jid: string | null | undefined): string {
+  if (!jid) return "";
+  const parts = jid.split("@");
+  if (parts.length < 2) return jid;
+  const user = parts[0].split(":")[0];
+  const server = parts[1];
+  return `${user}@${server}`;
+}
+
+function isSelfBot(jid: string | null | undefined, sockInstance?: any): boolean {
+  if (!jid) return false;
+  
+  const cleanJid = jidNormalizedUser(jid);
+  if (!cleanJid) return false;
+
+  let botPn = "";
+  let botLid = "";
+  try {
+    const credsPath = path.join(process.cwd(), "baileys_auth_info", "creds.json");
+    if (fs.existsSync(credsPath)) {
+      const creds = JSON.parse(fs.readFileSync(credsPath, "utf-8"));
+      if (creds.me) {
+        if (creds.me.id) botPn = jidNormalizedUser(creds.me.id);
+        if (creds.me.lid) botLid = jidNormalizedUser(creds.me.lid);
+      }
+    }
+  } catch (err) {
+    // Ignore error
+  }
+
+  const activeSock = sockInstance || (typeof botManager !== "undefined" ? botManager?.sock : null);
+  if (activeSock?.user) {
+    const user = activeSock.user;
+    if (user.id && !botPn) botPn = jidNormalizedUser(user.id);
+    if (user.lid && !botLid) botLid = jidNormalizedUser(user.id.includes("@lid") ? user.id : user.lid);
+    if (user.id && user.id.includes("@lid")) {
+      botLid = jidNormalizedUser(user.id);
+    }
+  }
+
+  if (botPn && cleanJid === botPn) return true;
+  if (botLid && cleanJid === botLid) return true;
+
+  const jidNode = cleanJid.split("@")[0];
+  const botPnNode = botPn ? botPn.split("@")[0] : "";
+  const botLidNode = botLid ? botLid.split("@")[0] : "";
+
+  if (botPnNode && jidNode === botPnNode) return true;
+  if (botLidNode && jidNode === botLidNode) return true;
+
+  const resolvedCandidate = resolveLidToPn(cleanJid);
+  const resolvedCandidateNormalized = jidNormalizedUser(resolvedCandidate);
+  if (botPn && resolvedCandidateNormalized === botPn) return true;
+
+  return false;
+}
+
 // Bot Manager State
 class WhatsAppBotManager {
   status: "disconnected" | "connecting" | "connected" = "disconnected";
@@ -1093,10 +1150,12 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
     }
 
     // Helper to format templates safely
-    const format = (template: string, vars: Record<string, string>) => {
+    const format = (template: string | undefined | null, vars: Record<string, any>) => {
+      if (!template) return "";
       let res = template;
       for (const [k, v] of Object.entries(vars)) {
-        res = res.replace(new RegExp(`{${k}}`, "g"), v);
+        const val = v !== undefined && v !== null ? String(v) : "";
+        res = res.replace(new RegExp(`{${k}}`, "g"), val);
       }
       return res;
     };
@@ -1159,7 +1218,7 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
       isSenderOwner = lowerSimSender.includes("owner");
       isSenderAdmin = lowerSimSender.includes("admin");
     } else {
-      const rawOwnerPhone = settings.ownerNumber || "6285712439395";
+      const rawOwnerPhone = String(settings.ownerNumber || "6285712439395");
       const cleanOwnerPhone = rawOwnerPhone.replace(/[^0-9]/g, "");
 
       let senderPhone = "";
@@ -1167,9 +1226,9 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
       if (isGroup) {
         senderPhone = rawMsg?.key?.participant ? rawMsg.key.participant.split("@")[0] : "";
       } else {
-        senderPhone = from.split("@")[0];
+        senderPhone = from.split("@")[0] || "";
       }
-      const cleanSenderPhone = senderPhone.replace(/[^0-9]/g, "");
+      const cleanSenderPhone = String(senderPhone).replace(/[^0-9]/g, "");
       isSenderOwner = cleanSenderPhone === cleanOwnerPhone;
 
       if (isGroup && !isSenderOwner && this.sock) {
@@ -1557,12 +1616,8 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
           const cleanOwnerPhone = rawOwnerPhone.replace(/[^0-9]/g, "");
           const ownerId = `${cleanOwnerPhone}@s.whatsapp.net`;
 
-          let botId = "";
-          if (!isSimulation && this.sock?.user?.id) {
-            botId = this.sock.user.id.split(":")[0] + "@s.whatsapp.net";
-          }
+          const isTargetBot = isSelfBot(targetJid, this.sock);
 
-          const isTargetBot = (botId && targetJid === botId) || (isSimulation && (targetMentionOrNum.toLowerCase().includes("bot") || targetJid?.includes("bot") || targetJid === `${this.sock?.user?.id?.split(":")[0]}@s.whatsapp.net`));
           const isTargetOwner = (targetJid === ownerId) || (isSimulation && (targetMentionOrNum.toLowerCase().includes("owner") || targetJid?.includes("owner")));
 
           if (isTargetBot) {
@@ -1634,9 +1689,14 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
           } else {
             try {
               const metadata = await this.sock.groupMetadata(from);
-              const botId = this.sock.user.id.split(":")[0] + "@s.whatsapp.net";
               
-              const botParticipant = metadata.participants.find((p: any) => p.id === botId);
+              // Debug logging to help identify bot and participants
+              console.log("[KickCommand] Checking admin. Bot raw ID:", this.sock.user?.id);
+              console.log("[KickCommand] Group participants:", metadata.participants.map((p: any) => ({ id: p.id, admin: p.admin })));
+
+              const botParticipant = metadata.participants.find((p: any) => isSelfBot(p.id, this.sock));
+              console.log("[KickCommand] Found botParticipant object:", botParticipant);
+              
               const targetParticipant = metadata.participants.find((p: any) => p.id === targetJid);
               
               const isBotAdmin = botParticipant?.admin !== undefined && botParticipant?.admin !== null;
@@ -1743,9 +1803,14 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
           } else {
             try {
               const metadata = await this.sock.groupMetadata(from);
-              const botId = this.sock.user.id.split(":")[0] + "@s.whatsapp.net";
               
-              const botParticipant = metadata.participants.find((p: any) => p.id === botId);
+              // Debug logging to help identify bot and participants
+              console.log("[AddCommand] Checking admin. Bot raw ID:", this.sock.user?.id);
+              console.log("[AddCommand] Group participants:", metadata.participants.map((p: any) => ({ id: p.id, admin: p.admin })));
+
+              const botParticipant = metadata.participants.find((p: any) => isSelfBot(p.id, this.sock));
+              console.log("[AddCommand] Found botParticipant object:", botParticipant);
+              
               const isBotAdmin = botParticipant?.admin !== undefined && botParticipant?.admin !== null;
 
               if (!isBotAdmin) {
@@ -1924,8 +1989,14 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
         } else {
           try {
             const metadata = await this.sock.groupMetadata(from);
-            const botId = this.sock.user.id.split(":")[0] + "@s.whatsapp.net";
-            const botParticipant = metadata.participants.find((p: any) => p.id === botId);
+            
+            // Debug logging to help identify bot and participants
+            console.log("[CloseCommand] Checking admin. Bot raw ID:", this.sock.user?.id);
+            console.log("[CloseCommand] Group participants:", metadata.participants.map((p: any) => ({ id: p.id, admin: p.admin })));
+
+            const botParticipant = metadata.participants.find((p: any) => isSelfBot(p.id, this.sock));
+            console.log("[CloseCommand] Found botParticipant object:", botParticipant);
+            
             const isBotAdmin = botParticipant?.admin !== undefined && botParticipant?.admin !== null;
 
             if (!isBotAdmin) {
@@ -2002,8 +2073,14 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
         } else {
           try {
             const metadata = await this.sock.groupMetadata(from);
-            const botId = this.sock.user.id.split(":")[0] + "@s.whatsapp.net";
-            const botParticipant = metadata.participants.find((p: any) => p.id === botId);
+            
+            // Debug logging to help identify bot and participants
+            console.log("[OpenCommand] Checking admin. Bot raw ID:", this.sock.user?.id);
+            console.log("[OpenCommand] Group participants:", metadata.participants.map((p: any) => ({ id: p.id, admin: p.admin })));
+
+            const botParticipant = metadata.participants.find((p: any) => isSelfBot(p.id, this.sock));
+            console.log("[OpenCommand] Found botParticipant object:", botParticipant);
+            
             const isBotAdmin = botParticipant?.admin !== undefined && botParticipant?.admin !== null;
 
             if (!isBotAdmin) {
@@ -2728,6 +2805,8 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
     // 3. Dispatch response through WhatsApp (if connected and NOT simulation)
     if (!isSimulation && responseText && this.sock && this.status === "connected") {
       try {
+        const options = rawMsg ? { quoted: rawMsg } : undefined;
+
         const sendWithImageCheck = async (imageUrl: string, captionText: string) => {
           if (imageUrl.startsWith("data:")) {
             const matched = imageUrl.match(/^data:image\/([a-zA-Z0-9+-\/]+);base64,(.+)$/);
@@ -2739,14 +2818,14 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
                 image: buffer,
                 caption: captionText,
                 mimetype: mime || "image/png"
-              });
+              }, options);
               return true;
             }
           } else if (imageUrl) {
             await this.sock.sendMessage(from, {
               image: { url: imageUrl },
               caption: captionText,
-            });
+            }, options);
             return true;
           }
           return false;
@@ -2778,12 +2857,12 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
                 image: mediaBuffer,
                 caption: responseText,
                 mimetype: mime || "image/png"
-              });
+              }, options);
             } else {
               await this.sock.sendMessage(from, {
                 image: { url: mediaUrl },
                 caption: responseText,
-              });
+              }, options);
             }
           } else if (mediaType === "video") {
             if (mediaBuffer) {
@@ -2791,12 +2870,12 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
                 video: mediaBuffer,
                 caption: responseText,
                 mimetype: mime || "video/mp4"
-              });
+              }, options);
             } else {
               await this.sock.sendMessage(from, {
                 video: { url: mediaUrl },
                 caption: responseText,
-              });
+              }, options);
             }
           }
         } else if (matchedCommand === "menu" && settings.sendMenuWithImage && settings.menuImageUrl) {
@@ -2804,7 +2883,7 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
           await this.sock.sendMessage(from, {
             image: { url: settings.menuImageUrl },
             caption: responseText,
-          });
+          }, options);
         } else if (matchedCommand === "payment" && settings.paymentQrisUrl) {
           const qrisUrl = settings.paymentQrisUrl;
           if (qrisUrl.startsWith("data:")) {
@@ -2817,37 +2896,37 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
                 image: buffer,
                 caption: responseText,
                 mimetype: `image/${mime}`
-              });
+              }, options);
             } else {
-              await this.sock.sendMessage(from, { text: responseText });
+              await this.sock.sendMessage(from, { text: responseText }, options);
             }
           } else {
             await this.sock.sendMessage(from, {
               image: { url: qrisUrl },
               caption: responseText,
-            });
+            }, options);
           }
         } else if (matchedCommand === "greeting" && settings.welcomeImageUrl) {
           const sent = await sendWithImageCheck(settings.welcomeImageUrl, responseText);
-          if (!sent) await this.sock.sendMessage(from, { text: responseText });
+          if (!sent) await this.sock.sendMessage(from, { text: responseText }, options);
         } else if (matchedCommand === "owner" && settings.ownerImageUrl) {
           const sent = await sendWithImageCheck(settings.ownerImageUrl, responseText);
-          if (!sent) await this.sock.sendMessage(from, { text: responseText });
+          if (!sent) await this.sock.sendMessage(from, { text: responseText }, options);
         } else if (matchedCommand === "order_success" && settings.orderSuccessImageUrl) {
           const sent = await sendWithImageCheck(settings.orderSuccessImageUrl, responseText);
-          if (!sent) await this.sock.sendMessage(from, { text: responseText });
+          if (!sent) await this.sock.sendMessage(from, { text: responseText }, options);
         } else if (matchedCommand === "fallback" && settings.fallbackImageUrl) {
           const sent = await sendWithImageCheck(settings.fallbackImageUrl, responseText);
-          if (!sent) await this.sock.sendMessage(from, { text: responseText });
+          if (!sent) await this.sock.sendMessage(from, { text: responseText }, options);
         } else if (matchedCommand && matchedCommand.startsWith("info:")) {
           const prodId = matchedCommand.split(":")[1];
           const productObj = db.products.find((p: any) => p.id === prodId);
           const infoImage = (productObj && productObj.image) || settings.infoImageUrl;
           if (infoImage) {
             const sent = await sendWithImageCheck(infoImage, responseText);
-            if (!sent) await this.sock.sendMessage(from, { text: responseText });
+            if (!sent) await this.sock.sendMessage(from, { text: responseText }, options);
           } else {
-            await this.sock.sendMessage(from, { text: responseText });
+            await this.sock.sendMessage(from, { text: responseText }, options);
           }
         } else if (matchedCommand === "hidetag") {
           let mentions: string[] = [];
@@ -2859,7 +2938,7 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
           } catch (err) {
             console.error("Error fetching group participants for hidetag:", err);
           }
-          await this.sock.sendMessage(from, { text: responseText, mentions });
+          await this.sock.sendMessage(from, { text: responseText, mentions }, options);
 
         } else if (matchedCommand.startsWith("kick") || matchedCommand.startsWith("add") || ["proses", "selesai", "gagal"].includes(matchedCommand)) {
           const mentions: string[] = [];
@@ -2870,10 +2949,10 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
               mentions.push(`${phone}@s.whatsapp.net`);
             }
           }
-          await this.sock.sendMessage(from, { text: responseText, mentions });
+          await this.sock.sendMessage(from, { text: responseText, mentions }, options);
         } else {
           // General text message
-          await this.sock.sendMessage(from, { text: responseText });
+          await this.sock.sendMessage(from, { text: responseText }, options);
         }
 
         // Add to log
@@ -2889,7 +2968,8 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
         console.error("Error sending WhatsApp message:", err);
         // Fallback send text if media fails
         try {
-          await this.sock.sendMessage(from, { text: responseText });
+          const options = rawMsg ? { quoted: rawMsg } : undefined;
+          await this.sock.sendMessage(from, { text: responseText }, options);
           this.addLog({
             from,
             senderName: this.pushName,
