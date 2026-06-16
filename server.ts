@@ -11,6 +11,16 @@ import { isFirebaseEnabled, syncFromFirestore, syncToFirestore } from "./src/fir
 const app = express();
 const PORT = 3000;
 
+function getFileMimeType(fileName: string, defaultType: string): string {
+  const ext = path.extname(fileName).toLowerCase();
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".png") return "image/png";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".mp4") return "video/mp4";
+  return defaultType;
+}
+
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ limit: "15mb", extended: true }));
 
@@ -272,13 +282,16 @@ class WhatsAppBotManager {
                 if (isBase64) {
                   const matched = b.mediaUrl.match(/^data:([a-zA-Z0-9-\/]+);base64,(.+)$/) || b.mediaUrl.match(/^data:image\/([a-zA-Z0-9+-\/]+);base64,(.+)$/);
                   if (matched) {
-                    const mime = matched[1];
+                    let mime = matched[1];
+                    if (!mime.includes("/")) {
+                      mime = b.mediaType === "image" ? `image/${mime}` : `video/${mime}`;
+                    }
                     const base64Content = matched[2];
                     const buffer = Buffer.from(base64Content, "base64");
                     await this.sock.sendMessage(jid, {
                       [b.mediaType]: buffer,
                       caption: personalizedMessage,
-                      mimetype: mime || (b.mediaType === "image" ? "image/png" : "video/mp4")
+                      mimetype: mime
                     });
                   } else {
                     await this.sock.sendMessage(jid, {
@@ -287,10 +300,22 @@ class WhatsAppBotManager {
                     });
                   }
                 } else {
-                  await this.sock.sendMessage(jid, {
-                    [b.mediaType]: { url: b.mediaUrl },
-                    caption: personalizedMessage
-                  });
+                  // Check local files first
+                  const folder = b.mediaType === "image" ? "src/images" : "src/video";
+                  const filePath = path.join(process.cwd(), folder, b.mediaUrl);
+                  if (fs.existsSync(filePath)) {
+                    const buffer = fs.readFileSync(filePath);
+                    await this.sock.sendMessage(jid, {
+                      [b.mediaType]: buffer,
+                      caption: personalizedMessage,
+                      mimetype: getFileMimeType(b.mediaUrl, b.mediaType === "image" ? "image/png" : "video/mp4")
+                    });
+                  } else {
+                    await this.sock.sendMessage(jid, {
+                      [b.mediaType]: { url: b.mediaUrl },
+                      caption: personalizedMessage
+                    });
+                  }
                 }
               } else {
                 await this.sock.sendMessage(jid, { text: personalizedMessage });
@@ -1942,7 +1967,7 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
             });
           } else {
             currentTargets.push(newTarget);
-            responseText = format(settings.bcaddSuccessTemplate || `âœ… *Target Ditambahkan*\n\nBerhasil menambahkan target broadcast baru:\nðŸ‘¤ *Nama:* {targetName}\nðŸ“± *No/JID:* {targetPhone}\nðŸ·ï¸ *Kategori:* {targetCategory}`, {
+            responseText = format(settings.bcaddSuccessTemplate || `âœ… *Target Ditambahkan*\n\nBerhasil menambahkan target broadcast baru:\ní ½í±¤ *Nama:* {targetName}\nðŸ“± *No/JID:* {targetPhone}\nðŸ·ï¸ *Kategori:* {targetCategory}`, {
               targetName: targetName,
               targetPhone: targetPhone,
               targetCategory: targetCategory.toUpperCase(),
@@ -2809,24 +2834,40 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
 
         const sendWithImageCheck = async (imageUrl: string, captionText: string) => {
           if (imageUrl.startsWith("data:")) {
-            const matched = imageUrl.match(/^data:image\/([a-zA-Z0-9+-\/]+);base64,(.+)$/);
+            const matched = imageUrl.match(/^data:([^;]+);base64,(.+)$/) || imageUrl.match(/^data:image\/([a-zA-Z0-9+-\/]+);base64,(.+)$/);
             if (matched) {
-              const mime = matched[1];
+              let mime = matched[1];
+              if (!mime.includes("/")) {
+                mime = `image/${mime}`;
+              }
               const base64Content = matched[2];
               const buffer = Buffer.from(base64Content, "base64");
               await this.sock.sendMessage(from, {
                 image: buffer,
                 caption: captionText,
-                mimetype: mime || "image/png"
+                mimetype: mime
               }, options);
               return true;
             }
           } else if (imageUrl) {
-            await this.sock.sendMessage(from, {
-              image: { url: imageUrl },
-              caption: captionText,
-            }, options);
-            return true;
+            // Check local files first
+            const filePath = path.join(process.cwd(), "src/images", imageUrl);
+            if (fs.existsSync(filePath)) {
+              const buffer = fs.readFileSync(filePath);
+              const determinedMime = getFileMimeType(imageUrl, "image/png");
+              await this.sock.sendMessage(from, {
+                image: buffer,
+                caption: captionText,
+                mimetype: determinedMime
+              }, options);
+              return true;
+            } else {
+              await this.sock.sendMessage(from, {
+                image: { url: imageUrl },
+                caption: captionText,
+              }, options);
+              return true;
+            }
           }
           return false;
         };
@@ -2847,7 +2888,18 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
             const matched = mediaUrl.match(/^data:([a-zA-Z0-9-\/]+);base64,(.+)$/);
             if (matched) {
               mime = matched[1];
+              if (!mime.includes("/")) {
+                mime = mediaType === "image" ? `image/${mime}` : `video/${mime}`;
+              }
               mediaBuffer = Buffer.from(matched[2], "base64");
+            }
+          } else {
+            // Check local files first
+            const folder = mediaType === "image" ? "src/images" : "src/video";
+            const filePath = path.join(process.cwd(), folder, mediaUrl);
+            if (fs.existsSync(filePath)) {
+              mediaBuffer = fs.readFileSync(filePath);
+              mime = getFileMimeType(mediaUrl, mediaType === "image" ? "image/png" : "video/mp4");
             }
           }
 
@@ -2880,32 +2932,11 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
           }
         } else if (matchedCommand === "menu" && settings.sendMenuWithImage && settings.menuImageUrl) {
           // Send image with menu caption
-          await this.sock.sendMessage(from, {
-            image: { url: settings.menuImageUrl },
-            caption: responseText,
-          }, options);
+          const sent = await sendWithImageCheck(settings.menuImageUrl, responseText);
+          if (!sent) await this.sock.sendMessage(from, { text: responseText }, options);
         } else if (matchedCommand === "payment" && settings.paymentQrisUrl) {
-          const qrisUrl = settings.paymentQrisUrl;
-          if (qrisUrl.startsWith("data:")) {
-            const matched = qrisUrl.match(/^data:image\/([a-zA-Z+]+);base64,(.+)$/);
-            if (matched) {
-              const mime = matched[1];
-              const base64Content = matched[2];
-              const buffer = Buffer.from(base64Content, "base64");
-              await this.sock.sendMessage(from, {
-                image: buffer,
-                caption: responseText,
-                mimetype: `image/${mime}`
-              }, options);
-            } else {
-              await this.sock.sendMessage(from, { text: responseText }, options);
-            }
-          } else {
-            await this.sock.sendMessage(from, {
-              image: { url: qrisUrl },
-              caption: responseText,
-            }, options);
-          }
+          const sent = await sendWithImageCheck(settings.paymentQrisUrl, responseText);
+          if (!sent) await this.sock.sendMessage(from, { text: responseText }, options);
         } else if (matchedCommand === "greeting" && settings.welcomeImageUrl) {
           const sent = await sendWithImageCheck(settings.welcomeImageUrl, responseText);
           if (!sent) await this.sock.sendMessage(from, { text: responseText }, options);
@@ -3427,6 +3458,33 @@ app.get("/api/auth/activity-logs", (req, res) => {
 
 // ---------------- API ENDPOINTS ----------------
 
+// Get local media files inside src/images or src/video
+app.get("/api/local-media", (req, res) => {
+  try {
+    const imagesDir = path.join(process.cwd(), "src/images");
+    const videoDir = path.join(process.cwd(), "src/video");
+
+    // Ensure they exist
+    if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+    if (!fs.existsSync(videoDir)) fs.mkdirSync(videoDir, { recursive: true });
+
+    const images = fs.readdirSync(imagesDir).filter(file => {
+      const stats = fs.statSync(path.join(imagesDir, file));
+      return stats.isFile() && !file.startsWith(".");
+    });
+
+    const videos = fs.readdirSync(videoDir).filter(file => {
+      const stats = fs.statSync(path.join(videoDir, file));
+      return stats.isFile() && !file.startsWith(".");
+    });
+
+    res.json({ images, videos });
+  } catch (err: any) {
+    console.error("Gagal membaca folder media lokal:", err);
+    res.status(500).json({ error: "Gagal membaca folder media lokal: " + err.message });
+  }
+});
+
 // Get Bot Status
 app.get("/api/status", (req, res) => {
   res.json({
@@ -3603,13 +3661,16 @@ app.post("/api/send-message", async (req, res) => {
       if (isBase64) {
         const matched = mediaUrl.match(/^data:([a-zA-Z0-9-\/]+);base64,(.+)$/) || mediaUrl.match(/^data:image\/([a-zA-Z0-9+-\/]+);base64,(.+)$/);
         if (matched) {
-          const mime = matched[1];
+          let mime = matched[1];
+          if (!mime.includes("/")) {
+            mime = mediaType === "image" ? `image/${mime}` : `video/${mime}`;
+          }
           const base64Content = matched[2];
           const buffer = Buffer.from(base64Content, "base64");
           await botManager.sock.sendMessage(jid, {
             [mediaType]: buffer,
             caption: text,
-            mimetype: mime || (mediaType === "image" ? "image/png" : "video/mp4")
+            mimetype: mime
           });
         } else {
           await botManager.sock.sendMessage(jid, {
@@ -3618,10 +3679,22 @@ app.post("/api/send-message", async (req, res) => {
           });
         }
       } else {
-        await botManager.sock.sendMessage(jid, {
-          [mediaType]: { url: mediaUrl },
-          caption: text
-        });
+        // Check local files first
+        const folder = mediaType === "image" ? "src/images" : "src/video";
+        const filePath = path.join(process.cwd(), folder, mediaUrl);
+        if (fs.existsSync(filePath)) {
+          const buffer = fs.readFileSync(filePath);
+          await botManager.sock.sendMessage(jid, {
+            [mediaType]: buffer,
+            caption: text,
+            mimetype: getFileMimeType(mediaUrl, mediaType === "image" ? "image/png" : "video/mp4")
+          });
+        } else {
+          await botManager.sock.sendMessage(jid, {
+            [mediaType]: { url: mediaUrl },
+            caption: text
+          });
+        }
       }
     } else {
       await botManager.sock.sendMessage(jid, { text });
@@ -3775,6 +3848,9 @@ app.delete("/api/scheduled-broadcasts/:id", (req, res) => {
 
 // Vite & Static file hosting for dev / production
 async function startServer() {
+  app.use("/src/images", express.static(path.join(process.cwd(), "src/images")));
+  app.use("/src/video", express.static(path.join(process.cwd(), "src/video")));
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
