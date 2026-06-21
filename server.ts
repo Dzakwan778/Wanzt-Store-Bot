@@ -152,7 +152,7 @@ class WhatsAppBotManager {
   reconnectAttempts: number = 0;
   maxReconnectAttempts: number = 5;
   presencesMap: Record<string, Set<string>> = {};
-  spamTracker: Record<string, { lastMessage: string; count: number; cooldownUntil: number; warned: boolean }> = {};
+  spamTracker: Record<string, { lastMessage: string; count: number; cooldownUntil: number; warned: boolean; msgTimes?: number[]; lastWarnedAt?: number }> = {};
   cachedDb: any = null;
   private isSyncingFirebase: boolean = false;
   isManualDisconnect: boolean = false;
@@ -1120,19 +1120,73 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
 
     // 1b. Spam Protection
     const now = Date.now();
+    const antiSpamEnabled = settings.antiSpamEnabled !== false; // defaults to true
+    const isGroup = from.endsWith("@g.us");
+    
+    // Determine if this chat/user should be checked for spam
+    let shouldCheckSpam = antiSpamEnabled;
+    if (antiSpamEnabled) {
+      const mode = settings.antiSpamMode || "all"; // 'all', 'groups_only', 'private_only', 'custom', 'exclude'
+      if (mode === "groups_only" && !isGroup) {
+        shouldCheckSpam = false;
+      } else if (mode === "private_only" && isGroup) {
+        shouldCheckSpam = false;
+      } else if (mode === "custom") {
+        if (!isGroup) {
+          shouldCheckSpam = false;
+        } else {
+          const protectedGroups = settings.antiSpamProtectedGroups || [];
+          if (!protectedGroups.includes(from)) {
+            shouldCheckSpam = false;
+          }
+        }
+      } else if (mode === "exclude") {
+        if (isGroup) {
+          const excludedGroups = settings.antiSpamExcludedGroups || [];
+          if (excludedGroups.includes(from)) {
+            shouldCheckSpam = false;
+          }
+        }
+      }
+    }
+
+    // Determine unique spam tracking key
+    const participantJid = (isGroup && rawMsg?.key?.participant) ? rawMsg.key.participant : null;
+    const spamKey = participantJid ? `${from}_${participantJid}` : from;
+
     if (!this.spamTracker) {
       this.spamTracker = {};
     }
-    if (!this.spamTracker[from]) {
-      this.spamTracker[from] = { lastMessage: "", count: 0, cooldownUntil: 0, warned: false };
+    if (!this.spamTracker[spamKey]) {
+      this.spamTracker[spamKey] = { lastMessage: "", count: 0, cooldownUntil: 0, warned: false, msgTimes: [] };
     }
 
-    const tracker = this.spamTracker[from];
+    const tracker = this.spamTracker[spamKey];
+    const limit = settings.antiSpamLimit || 5;
+    const cooldownSec = settings.antiSpamCooldownSec || 300; // 5 minutes standard default
 
     // Check if user is currently on cooldown
-    if (tracker.cooldownUntil > now) {
-      const remainingMinutes = Math.ceil((tracker.cooldownUntil - now) / 60000);
-      const blockedResponse = `🛡️ *SISTEM ANTI-SPAM*\n\nMaaf, Anda dideteksi melakukan spamming. Bot dinonaktifkan sementara untuk Anda.\nSilakan coba lagi dalam *${remainingMinutes} menit*.`;
+    if (shouldCheckSpam && tracker.cooldownUntil > now) {
+      const remainingSec = Math.ceil((tracker.cooldownUntil - now) / 1000);
+      let blockedResponse = settings.antiSpamBlockedTemplate || `🛡️ *SISTEM ANTI-SPAM*\n\nMaaf, Anda dideteksi melakukan spamming. Bot dinonaktifkan sementara untuk Anda.\nSilakan coba lagi dalam *{remaining} detik*.`;
+      blockedResponse = blockedResponse
+        .replace(/{remaining}/g, String(remainingSec))
+        .replace(/{limit}/g, String(limit))
+        .replace(/{cooldown}/g, String(cooldownSec));
+
+      // Reply once every 10 seconds per unique spam user to avoid the bot spamming itself
+      const timeSinceLastWarn = now - (tracker.lastWarnedAt || 0);
+      if (timeSinceLastWarn > 10000) {
+        tracker.lastWarnedAt = now;
+        if (!isSimulation && this.sock && this.status === "connected") {
+          try {
+            await this.sock.sendMessage(from, { text: blockedResponse }, { quoted: rawMsg });
+          } catch (err) {
+            console.error("Failed to send spam blocked reply to WA:", err);
+          }
+        }
+      }
+
       return {
         response: blockedResponse,
         command: "spam_blocked",
@@ -1141,44 +1195,126 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
       };
     }
 
-    // Track consecutive duplicate messages
-    if (tracker.lastMessage === text) {
-      tracker.count += 1;
-    } else {
-      tracker.lastMessage = text;
-      tracker.count = 1;
-    }
-
-    // Trigger cooldown if count reaches 5
-    if (tracker.count >= 5) {
-      tracker.cooldownUntil = now + 5 * 60 * 1000; // 5 minutes block
-      tracker.count = 0; // reset
-      tracker.warned = true;
-
-      const cooldownWarning = `⚠️ *SISTEM ANTI-SPAM*\n\nAnda mengirimkan pesan yang sama sebanyak 5 kali berturut-turut.\n*Bot ditangguhkan sementara selama 5 menit* untuk menjaga performa server.\nSilakan coba lagi beberapa saat lagi!`;
-
-      // Send the WhatsApp notification immediately if live connected
-      if (!isSimulation && this.sock && this.status === "connected") {
-        try {
-          await this.sock.sendMessage(from, { text: cooldownWarning });
-        } catch (err) {
-          console.error("Failed to send cooldown warning to WA:", err);
-        }
+    if (shouldCheckSpam) {
+      // 1. Check duplicate messages
+      if (tracker.lastMessage === text) {
+        tracker.count += 1;
+      } else {
+        tracker.lastMessage = text;
+        tracker.count = 1;
       }
 
-      return {
-        response: cooldownWarning,
-        command: "spam_triggered",
-        status: "Spam Blocked",
-        hasImage: false
-      };
+      // 2. Check frequency
+      tracker.msgTimes = tracker.msgTimes || [];
+      tracker.msgTimes.push(now);
+      tracker.msgTimes = tracker.msgTimes.filter(t => now - t < 10000); // 10 seconds window
+
+      const isDuplicateSpam = tracker.count >= limit;
+      const isFrequencySpam = tracker.msgTimes.length >= limit;
+
+      if (isDuplicateSpam || isFrequencySpam) {
+        tracker.cooldownUntil = now + cooldownSec * 1000;
+        tracker.count = 0; // reset
+        tracker.msgTimes = []; // reset
+        tracker.warned = true;
+        tracker.lastWarnedAt = now;
+
+        const reason = isDuplicateSpam 
+          ? `mengirimkan pesan yang sama sebanyak {limit} kali berturut-turut` 
+          : `mengirimkan terlalu banyak pesan ({limit} pesan dalam 10 detik)`;
+
+        let cooldownWarning = settings.antiSpamWarningTemplate || `⚠️ *SISTEM ANTI-SPAM*\n\nAnda dideteksi melakukan spamming ({reason}).\n*Bot ditangguhkan sementara selama {cooldown} detik* untuk menjaga performa server.\nSilakan coba lagi beberapa saat lagi!`;
+        cooldownWarning = cooldownWarning
+          .replace(/{limit}/g, String(limit))
+          .replace(/{cooldown}/g, String(cooldownSec))
+          .replace(/{reason}/g, reason);
+
+        // Send the WhatsApp notification immediately as a reply (reply last message)
+        if (!isSimulation && this.sock && this.status === "connected") {
+          try {
+            await this.sock.sendMessage(from, { text: cooldownWarning }, { quoted: rawMsg });
+          } catch (err) {
+            console.error("Failed to send cooldown warning to WA:", err);
+          }
+        }
+
+        return {
+          response: cooldownWarning,
+          command: "spam_triggered",
+          status: "Spam Blocked",
+          hasImage: false
+        };
+      }
     }
 
-    // Helper to format templates safely
-    const format = (template: string | undefined | null, vars: Record<string, any>) => {
+    // Group products & compile catalog layout for potential list or dynamic catalog template variables
+    let catalogText = "";
+    for (const cat of db.categories) {
+      const catProducts = db.products.filter((p: any) => p.category === cat.id);
+      if (catProducts.length > 0) {
+        catalogText += `\n🎬 *${cat.name.toUpperCase()}*\n`;
+        catProducts.forEach((p: any) => {
+          catalogText += `┊ ${p.name.toUpperCase()}\n`;
+        });
+      }
+    }
+
+    let rawSenderPhone = "";
+    if (isSimulation) {
+      rawSenderPhone = "628123456789";
+    } else {
+      let sPhone = "";
+      if (isGroup) {
+        sPhone = rawMsg?.key?.participant ? rawMsg.key.participant.split("@")[0] : "";
+      } else {
+        sPhone = from.split("@")[0] || "";
+      }
+      rawSenderPhone = String(sPhone).replace(/[^0-9]/g, "");
+    }
+
+    // Helper to format templates safely, always injecting standard system-wide template variables
+    const format = (template: string | undefined | null, vars: Record<string, any> = {}) => {
       if (!template) return "";
       let res = template;
-      for (const [k, v] of Object.entries(vars)) {
+      
+      const nowJakarta = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+      const tanggalStr = nowJakarta.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+      const waktuStr = nowJakarta.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " WIB";
+      const resolvedOwnerNumber = String(settings.ownerNumber || "6285712439395").replace(/[^0-9]/g, "");
+
+      const baseVars = {
+        name: senderName || "",
+        senderPhone: rawSenderPhone || "",
+        storeName: settings.storeName || "WANZZ STORE",
+        ownerNumber: resolvedOwnerNumber,
+        catalog: catalogText || "",
+        productName: vars.productName !== undefined ? vars.productName : "",
+        categoryName: vars.categoryName !== undefined ? vars.categoryName : "",
+        details: vars.details !== undefined ? vars.details : "",
+        price: vars.price !== undefined ? vars.price : "",
+        stock: vars.stock !== undefined ? vars.stock : "",
+        orderId: vars.orderId !== undefined ? vars.orderId : "",
+        paymentTemplate: vars.paymentTemplate !== undefined ? vars.paymentTemplate : (settings.paymentTemplate || "Konfigurasi pembayaran belum diset."),
+        message: text || "",
+        limit: vars.limit !== undefined ? vars.limit : (settings.antiSpamLimit || 5),
+        cooldown: vars.cooldown !== undefined ? vars.cooldown : (settings.antiSpamCooldownSec || 300),
+        remaining: vars.remaining !== undefined ? vars.remaining : "",
+        reason: vars.reason !== undefined ? vars.reason : "",
+        targetNumber: vars.targetNumber !== undefined ? vars.targetNumber : "",
+        targetName: vars.targetName !== undefined ? vars.targetName : "",
+        targetPhone: vars.targetPhone !== undefined ? vars.targetPhone : "",
+        targetCategory: vars.targetCategory !== undefined ? vars.targetCategory : "",
+        timeGreeting: vars.timeGreeting !== undefined ? vars.timeGreeting : "",
+        onlineCount: vars.onlineCount !== undefined ? vars.onlineCount : "",
+        listStr: vars.listStr !== undefined ? vars.listStr : "",
+        tanggal: vars.tanggal !== undefined ? vars.tanggal : tanggalStr,
+        waktu: vars.waktu !== undefined ? vars.waktu : waktuStr,
+        customerNumber: vars.customerNumber !== undefined ? vars.customerNumber : rawSenderPhone,
+        adminNumber: vars.adminNumber !== undefined ? vars.adminNumber : resolvedOwnerNumber,
+      };
+      
+      const mergedVars = { ...baseVars, ...vars };
+      for (const [k, v] of Object.entries(mergedVars)) {
         const val = v !== undefined && v !== null ? String(v) : "";
         res = res.replace(new RegExp(`{${k}}`, "g"), val);
       }
@@ -1209,18 +1345,6 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
     const isGagalTrigger = hasPrefix && lowerCommandText === "gagal";
     const isOrderTrigger = false;
 
-    // Group products & compile catalog layout for potential list or dynamic catalog template variables
-    let catalogText = "";
-    for (const cat of db.categories) {
-      const catProducts = db.products.filter((p: any) => p.category === cat.id);
-      if (catProducts.length > 0) {
-        catalogText += `\n🎬 *${cat.name.toUpperCase()}*\n`;
-        catProducts.forEach((p: any) => {
-          catalogText += `┊ ${p.name.toUpperCase()}\n`;
-        });
-      }
-    }
-
     // Try to find matching command in commands db first (e.g. .list, /list, /menu, !bayar triggers)
     const matchedCommandObj = hasPrefix ? (db.commands || []).find((c: any) => {
       const triggers = c.trigger.split(",").map((t: string) => t.trim().toLowerCase());
@@ -1246,15 +1370,7 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
       const rawOwnerPhone = String(settings.ownerNumber || "6285712439395");
       const cleanOwnerPhone = rawOwnerPhone.replace(/[^0-9]/g, "");
 
-      let senderPhone = "";
-      const isGroup = from.endsWith("@g.us");
-      if (isGroup) {
-        senderPhone = rawMsg?.key?.participant ? rawMsg.key.participant.split("@")[0] : "";
-      } else {
-        senderPhone = from.split("@")[0] || "";
-      }
-      const cleanSenderPhone = String(senderPhone).replace(/[^0-9]/g, "");
-      isSenderOwner = cleanSenderPhone === cleanOwnerPhone;
+      isSenderOwner = rawSenderPhone === cleanOwnerPhone;
 
       if (isGroup && !isSenderOwner && this.sock) {
         try {
@@ -1276,61 +1392,60 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
     const isAdminOnlyCommand = isKickTrigger || isAddTrigger || isCloseTrigger || isOpenTrigger || isOnlineTrigger || isHideTagCommand || isProsesTrigger || isSelesaiTrigger || isGagalTrigger;
 
     // --- MANDATORY ACCESS & WHITELIST VALIDATIONS ---
-    const isGroup = from.endsWith("@g.us");
 
-    if (isRecognizedCommand) {
-      // Langkah 1 & 2: Whitelist Validation for Group Messages
-      if (isGroup) {
-        const whitelistedGroups = settings.whitelistedGroups || ["120363425916568709@g.us"];
-        const isTargetGroup = whitelistedGroups.includes(from);
+    // Whitelist Validation for Group Messages (Applies to all messages in a group)
+    if (isGroup) {
+      const whitelistedGroups = settings.whitelistedGroups || ["120363425916568709@g.us"];
+      const isTargetGroup = whitelistedGroups.includes(from);
 
-        if (!isTargetGroup) {
-          // Pengecualian: /idgrup tetap boleh diproses apabila pengirim adalah owner.
-          if (isIdGrupTrigger) {
-            if (!isSenderOwner) {
-              // Jika pengirim bukan owner: /idgrup ditolak dengan Owner Only Command Message
-              matchedCommand = "owner_restricted";
-              statusText = "Owner Restricted Command";
-              responseText = format(settings.ownerRestrictedTemplate || "Command ini hanya dapat diakses oleh Owner bot!", {
-                storeName: settings.storeName || "WANZZ STORE"
-              });
+      if (!isTargetGroup) {
+        // Pengecualian: /idgrup tetap boleh diproses apabila pengirim adalah owner.
+        if (isIdGrupTrigger) {
+          if (!isSenderOwner) {
+            // Jika pengirim bukan owner: /idgrup ditolak dengan Owner Only Command Message
+            matchedCommand = "owner_restricted";
+            statusText = "Owner Restricted Command";
+            responseText = format(settings.ownerRestrictedTemplate || "Command ini hanya dapat diakses oleh Owner bot!", {
+              storeName: settings.storeName || "WANZZ STORE"
+            });
 
-              // Send the WhatsApp notification immediately if live connected
-              if (!isSimulation && responseText && this.sock && this.status === "connected") {
-                try {
-                  await this.sock.sendMessage(from, { text: responseText }, { quoted: rawMsg });
-                  this.addLog({
-                    from,
-                    senderName: this.pushName,
-                    message: responseText,
-                    type: "outgoing",
-                    status: statusText,
-                  });
-                } catch (err) {
-                  console.error("Failed to send /idgrup restriction message:", err);
-                }
+            // Send the WhatsApp notification immediately if live connected
+            if (!isSimulation && responseText && this.sock && this.status === "connected") {
+              try {
+                await this.sock.sendMessage(from, { text: responseText }, { quoted: rawMsg });
+                this.addLog({
+                  from,
+                  senderName: this.pushName,
+                  message: responseText,
+                  type: "outgoing",
+                  status: statusText,
+                });
+              } catch (err) {
+                console.error("Failed to send /idgrup restriction message:", err);
               }
-
-              return {
-                response: responseText,
-                command: matchedCommand,
-                status: statusText,
-                hasImage: false
-              };
             }
-            // If they are owner, let it fall through to execution of /idgrup normally!
-          } else {
-            // Abaikan seluruh command secara total, bot harus sepenuhnya diam
+
             return {
-              response: "",
-              command: "none",
-              status: "Ignored (Non-Whitelisted Group)",
+              response: responseText,
+              command: matchedCommand,
+              status: statusText,
               hasImage: false
             };
           }
+          // If they are owner, let it fall through to execution of /idgrup normally!
+        } else {
+          // Abaikan seluruh pesan secara total, bot harus sepenuhnya diam
+          return {
+            response: "",
+            command: "none",
+            status: "Ignored (Non-Whitelisted Group)",
+            hasImage: false
+          };
         }
       }
+    }
 
+    if (isRecognizedCommand) {
       // Langkah 3 & 4: Access validations depending on Category
       if (isOwnerOnlyCommand) {
         if (!isSenderOwner) {
@@ -1967,7 +2082,7 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
             });
           } else {
             currentTargets.push(newTarget);
-            responseText = format(settings.bcaddSuccessTemplate || `✅ *Target Ditambahkan*\n\nBerhasil menambahkan target broadcast baru:\n������ *Nama:* {targetName}\n📱 *No/JID:* {targetPhone}\n🏷️ *Kategori:* {targetCategory}`, {
+            responseText = format(settings.bcaddSuccessTemplate || `✅ *Target Ditambahkan*\n\nBerhasil menambahkan target broadcast baru:\n�� *Nama:* {targetName}\n📱 *No/JID:* {targetPhone}\n🏷️ *Kategori:* {targetCategory}`, {
               targetName: targetName,
               targetPhone: targetPhone,
               targetCategory: targetCategory.toUpperCase(),
@@ -2659,13 +2774,14 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
             const defaultOrderSuccessTemplate = "╭━━━〔 🛒 ORDER BERHASIL 〕━━━╮\n■ *No. Order:* #{orderId}\n■ *Produk:* {productName}\n■ *Harga:* {price}\n■ *Status:* Menunggu Pembayaran\n■ *Nama:* {name}\n━━━━━━━━━━━━━━━━━━\n\n{paymentTemplate}\n\n━━━━━━━━━━━━━━━━━━\n📌 *Kirim bukti transfer ke WhatsApp Owner (+{ownerNumber}) dan sebutkan No Order Anda untuk verifikasi instan!*\n╰━━━━━━━━━━━━━━━━━━━━━━╯";
             const currentTemplate = settings.orderSuccessTemplate || defaultOrderSuccessTemplate;
             
-            responseText = currentTemplate
-              .replace(/{orderId}/g, orderId)
-              .replace(/{productName}/g, resolvedName)
-              .replace(/{price}/g, `Rp${resolvedPrice.toLocaleString("id-ID")}`)
-              .replace(/{name}/g, senderName)
-              .replace(/{paymentTemplate}/g, settings.paymentTemplate || "Konfigurasi pembayaran belum diset.")
-              .replace(/{ownerNumber}/g, settings.ownerNumber || "6285712439395");
+            responseText = format(currentTemplate, {
+              orderId,
+              productName: resolvedName,
+              price: `Rp${resolvedPrice.toLocaleString("id-ID")}`,
+              name: senderName,
+              paymentTemplate: settings.paymentTemplate || "Konfigurasi pembayaran belum diset.",
+              ownerNumber: settings.ownerNumber || "6285712439395"
+            });
 
             if (settings.orderSuccessImageUrl) {
               hasImage = true;
@@ -2688,8 +2804,9 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
       if (isInfoCommand && !productSearchKey) {
         matchedCommand = "info_empty";
         statusText = "Sent Info Help (Empty)";
-        responseText = (settings.infoEmptyTemplate || "⚠️ *Format Informasi Salah*\n\nSilakan masukkan nama produk yang ingin Anda cari informasi detailnya.\n\nContoh:\n*!info NETFLIX* atau */info YT PREMIUM*")
-          .replace(/{storeName}/g, settings.storeName || "WANZZ STORE");
+        responseText = format(settings.infoEmptyTemplate || "⚠️ *Format Informasi Salah*\n\nSilakan masukkan nama produk yang ingin Anda cari informasi detailnya.\n\nContoh:\n*!info NETFLIX* atau */info YT PREMIUM*", {
+          storeName: settings.storeName || "WANZZ STORE"
+        });
       } else {
         // Exact or partial name matching in products
         const matchedProduct = db.products.find((p: any) => {
@@ -2712,7 +2829,7 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
 
           let detailsText = "";
           if (matchedProduct.variants && matchedProduct.variants.length > 0) {
-            detailsText += `PILIHAN / VARIAN LAYANAN:`;
+            const blocks: string[] = [];
             
             const categoriesList = matchedProduct.variantCategories || [];
             const usedCategories = Array.from(new Set(
@@ -2745,31 +2862,39 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
               }
             });
 
-            // Print categorized categories
+            // Process categorized categories
             allCategories.forEach(cat => {
               const list = grouped[cat] || [];
               if (list.length > 0) {
-                detailsText += `\n${cat.toUpperCase()}\n`;
+                const blockLines: string[] = [];
+                blockLines.push(`*${cat.toUpperCase()}*`);
                 list.forEach((v: any) => {
                   const subName = v.name;
                   const displayName = subName.toLowerCase().includes(matchedProduct.name.toLowerCase())
                     ? subName
                     : `${matchedProduct.name} ${subName}`;
-                  detailsText += `📍\n└ ${displayName} : Rp${v.price.toLocaleString("id-ID")}\n`;
+                  blockLines.push(`📍\n└ ${displayName} : *Rp${v.price.toLocaleString("id-ID")}*`);
                 });
+                blocks.push(blockLines.join("\n"));
               }
             });
 
-            // Print any uncategorized variants
+            // Process uncategorized variants
             if (uncategorized.length > 0) {
-              detailsText += `\nLAINNYA\n`;
+              const blockLines: string[] = [];
+              blockLines.push(`*LAINNYA*`);
               uncategorized.forEach((v: any) => {
                 const subName = v.name;
                 const displayName = subName.toLowerCase().includes(matchedProduct.name.toLowerCase())
                   ? subName
                   : `${matchedProduct.name} ${subName}`;
-                detailsText += `📍\n└ ${displayName} : Rp${v.price.toLocaleString("id-ID")}\n`;
+                blockLines.push(`📍\n└ ${displayName} : *Rp${v.price.toLocaleString("id-ID")}*`);
               });
+              blocks.push(blockLines.join("\n"));
+            }
+
+            if (blocks.length > 0) {
+              detailsText = `*PILIHAN / VARIAN LAYANAN:*\n\n` + blocks.join("\n\n\n");
             }
           }
 
@@ -2811,9 +2936,10 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
           const originalText = commandText.substring(4).trim();
           matchedCommand = "info_not_found";
           statusText = `Info Not Found: ${originalText}`;
-          responseText = (settings.infoNotFoundTemplate || "⚠️ *Produk Tidak Ditemukan*\n\nMohon maaf Kak, produk *{productName}* tidak tersedia di katalog kami.\n\nKetik */list* untuk melihat daftar produk yang tersedia! 🙏")
-            .replace(/{productName}/g, originalText)
-            .replace(/{storeName}/g, settings.storeName || "WANZZ STORE");
+          responseText = format(settings.infoNotFoundTemplate || "⚠️ *Produk Tidak Ditemukan*\n\nMohon maaf Kak, produk *{productName}* tidak tersedia di katalog kami.\n\nKetik */list* untuk melihat daftar produk yang tersedia! 🙏", {
+            productName: originalText,
+            storeName: settings.storeName || "WANZZ STORE"
+          });
         }
       }
     }

@@ -114,6 +114,16 @@ export interface BotSettings {
   gagalNoTxTemplate?: string;
   gagalForbiddenTemplate?: string;
   paymentGroupOnlyTemplate?: string;
+  
+  // Anti-Spam (Anti-Spam Control) settings
+  antiSpamEnabled?: boolean;
+  antiSpamMode?: 'all' | 'groups_only' | 'private_only' | 'custom' | 'exclude';
+  antiSpamLimit?: number;
+  antiSpamCooldownSec?: number;
+  antiSpamWarningTemplate?: string;
+  antiSpamBlockedTemplate?: string;
+  antiSpamProtectedGroups?: string[];
+  antiSpamExcludedGroups?: string[];
 }
 
 export interface ScheduledBroadcast {

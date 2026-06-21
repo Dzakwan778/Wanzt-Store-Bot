@@ -1,6 +1,7 @@
 // push Minggu, 14 Juni 2026
 // push Senin, 15 Juni 2026
 // push Selasa, 16 Juni 2026
+// push Minggu, 21 Juni 2026
 
 import React, { useState, useEffect, useRef } from "react";
 import { 
@@ -51,6 +52,7 @@ import {
   X,
   Megaphone,
   Users,
+  ShieldAlert,
   Play,
   Square
 } from "lucide-react";
@@ -276,7 +278,15 @@ export default function App() {
     selesaiForbiddenTemplate: "",
     gagalNoReplyTemplate: "",
     gagalNoTxTemplate: "",
-    gagalForbiddenTemplate: ""
+    gagalForbiddenTemplate: "",
+    antiSpamEnabled: true,
+    antiSpamMode: "all",
+    antiSpamLimit: 5,
+    antiSpamCooldownSec: 300,
+    antiSpamWarningTemplate: "⚠️ *SISTEM ANTI-SPAM*\n\nAnda dideteksi melakukan spamming ({reason}).\n*Bot ditangguhkan sementara selama {cooldown} detik* untuk menjaga performa server.\nSilakan coba lagi beberapa saat lagi!",
+    antiSpamBlockedTemplate: "🛡️ *SISTEM ANTI-SPAM*\n\nMaaf, Anda dideteksi melakukan spamming. Bot dinonaktifkan sementara untuk Anda.\nSilakan coba lagi dalam *{remaining} detik*.",
+    antiSpamProtectedGroups: [],
+    antiSpamExcludedGroups: []
   });
   const [initialDbLoaded, setInitialDbLoaded] = useState(false);
   const [commands, setCommands] = useState<BotCommand[]>([]);
@@ -4523,17 +4533,33 @@ export default function App() {
                       </p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;name&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Nama Customer</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;senderPhone&#125;</code> &rarr; <span className="text-[10px] text-slate-500">No. WA Customer</span></div>
                         <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;storeName&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Nama Toko</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;ownerNumber&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Nomor Owner</span></div>
                         <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;catalog&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Katalog Produk</span></div>
                         <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;productName&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Nama Layanan</span></div>
                         <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;categoryName&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Kategori</span></div>
                         <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;details&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Rincian Harga</span></div>
                         <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;message&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Pesan Pelanggan</span></div>
-                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;ownerNumber&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Nomor Owner</span></div>
                         <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;orderId&#125;</code> &rarr; <span className="text-[10px] text-slate-500">ID Pesanan</span></div>
-                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;paymentTemplate&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Template Pembayaran</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;paymentTemplate&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Template Pembay.</span></div>
                         <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;price&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Harga Layanan</span></div>
                         <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;stock&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Stok Layanan</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;limit&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Spam Limit</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;cooldown&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Cooldown Sekon</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;remaining&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Sisa Cooldown</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;reason&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Alasan Spam</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;targetNumber&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Target Kick/Add</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;targetName&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Nama Bc Target</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;targetPhone&#125;</code> &rarr; <span className="text-[10px] text-slate-500">JID Bc Target</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;targetCategory&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Kategori Bc</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;timeGreeting&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Sapaan Waktu</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;onlineCount&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Jumlah Online</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;listStr&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Daftar Online</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;tanggal&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Tanggal Hari Ini</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;waktu&#125;</code> &rarr; <span className="text-[10px] text-slate-500">Waktu Sekarang</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;customerNumber&#125;</code> &rarr; <span className="text-[10px] text-slate-500">No. Pelanggan Tx</span></div>
+                        <div className="p-2 bg-white rounded-lg border border-slate-200"><code className="font-bold text-pink-600 font-mono select-all">&#123;adminNumber&#125;</code> &rarr; <span className="text-[10px] text-slate-500">No. Admin Tx</span></div>
                       </div>
                     </div>
 
@@ -5621,7 +5647,7 @@ export default function App() {
                               </div>
                             </div>
                             <div className="space-y-1 pt-2 border-t border-slate-100">
-                              <label className="text-[10px] font-bold text-slate-700 block">Sukses Membuka Gerbang Grup</label>
+                              <label className="text-[10px] font-bold text-slate-705 block">Sukses Membuka Gerbang Grup</label>
                               <textarea
                                 rows={2}
                                 value={settings.openSuccessTemplate || ""}
@@ -5632,7 +5658,229 @@ export default function App() {
                             </div>
                           </div>
                         </div>
-                      </div>            </div>
+                      </div>
+
+                      {/* ANTI-SPAM CONTROL SYSTEM (Sistem Kontrol Anti-Spam) */}
+                      <div className="p-4 rounded-2xl border border-rose-100 bg-white shadow-xs space-y-4 col-span-1 md:col-span-2">
+                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                          <div className="p-1.5 bg-rose-50 text-rose-500 rounded-lg">
+                            <ShieldAlert className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs uppercase tracking-wider text-rose-600 block">SISTEM KONTROL ANTI-SPAM</span>
+                            <p className="text-[10px] text-slate-400">Lindungi bot dan performa server WhatsApp Anda dari kelebihan beban spam chat.</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          {/* Sisi Kiri: Mode & Batas Parameter */}
+                          <div className="space-y-4">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-700 block mb-1">Status Proteksi Anti-Spam</label>
+                              <select
+                                value={settings.antiSpamEnabled === false ? "false" : "true"}
+                                onChange={(e) => setSettings({ ...settings, antiSpamEnabled: e.target.value === "true" })}
+                                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-rose-450 focus:outline-hidden bg-white font-medium shadow-xs"
+                              >
+                                <option value="true">🟢 Aktif (Rekomendasi)</option>
+                                <option value="false">🔴 Nonaktifkan</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-700 block mb-1">Mode Cakupan Perlindungan</label>
+                              <select
+                                value={settings.antiSpamMode || "all"}
+                                onChange={(e) => setSettings({ ...settings, antiSpamMode: e.target.value as any })}
+                                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-rose-450 focus:outline-hidden bg-white font-medium shadow-xs"
+                              >
+                                <option value="all">🌐 Semua Percakapan (Grup & Pribadi)</option>
+                                <option value="groups_only">👥 Hanya Grup WhatsApp</option>
+                                <option value="private_only">👤 Hanya Chat Pribadi (DM)</option>
+                                <option value="custom">🔒 Kustom (Hanya Grup Terpilih)</option>
+                                <option value="exclude">🚫 Pengecualian (Semua Kecuali Grup Terpilih)</option>
+                              </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-700 block mb-1">Batas Spam (Pesan)</label>
+                                <input
+                                  type="number"
+                                  min={3}
+                                  max={20}
+                                  value={settings.antiSpamLimit || 5}
+                                  onChange={(e) => setSettings({ ...settings, antiSpamLimit: Number(e.target.value) || 5 })}
+                                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-rose-450 focus:outline-hidden bg-white shadow-xs"
+                                />
+                                <span className="text-[8px] text-slate-400 block mt-0.5">Maks pesan beruntut</span>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-700 block mb-1">Waktu Suspend (Detik)</label>
+                                <input
+                                  type="number"
+                                  min={10}
+                                  max={3600}
+                                  value={settings.antiSpamCooldownSec || 300}
+                                  onChange={(e) => setSettings({ ...settings, antiSpamCooldownSec: Number(e.target.value) || 300 })}
+                                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-rose-450 focus:outline-hidden bg-white shadow-xs"
+                                />
+                                <span className="text-[8px] text-slate-400 block mt-0.5">Masa blokir sementara</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Sisi Tengah: Kustomisasi Output dan Tag */}
+                          <div className="space-y-4 md:col-span-2">
+                            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-150 text-[10px] text-slate-600">
+                              <span className="font-bold text-slate-755 block mb-1">Tag Variabel Khusus Anti-Spam:</span>
+                              <div className="flex flex-wrap gap-2">
+                                <code className="font-bold text-rose-600 font-mono select-all">&#123;limit&#125;</code> (Batas maksimum),
+                                <code className="font-bold text-rose-600 font-mono select-all">&#123;cooldown&#125;</code> (Waktu tunda),
+                                <code className="font-bold text-rose-600 font-mono select-all">&#123;remaining&#125;</code> (Sisa waktu),
+                                <code className="font-bold text-rose-600 font-mono select-all">&#123;reason&#125;</code> (Alasan detail)
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-[10px] font-bold text-rose-700 block mb-1 flex justify-between">
+                                  <span>Notifikasi Blokir Pertama</span>
+                                </label>
+                                <textarea
+                                  rows={5}
+                                  value={settings.antiSpamWarningTemplate || "⚠️ *SISTEM ANTI-SPAM*\n\nAnda dideteksi melakukan spamming ({reason}).\n*Bot ditangguhkan sementara selama {cooldown} detik* untuk menjaga performa server.\nSilakan coba lagi beberapa saat lagi!"}
+                                  onChange={(e) => setSettings({ ...settings, antiSpamWarningTemplate: e.target.value })}
+                                  className="w-full px-3 py-2 rounded-xl border border-rose-150 text-xs font-mono focus:ring-2 focus:ring-rose-400 focus:outline-hidden bg-white"
+                                  placeholder="Tulis peringatan spam..."
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] font-bold text-rose-700 block mb-1">Notifikasi Selama Blokir Aktif</label>
+                                <textarea
+                                  rows={5}
+                                  value={settings.antiSpamBlockedTemplate || "🛡️ *SISTEM ANTI-SPAM*\n\nMaaf, Anda dideteksi melakukan spamming. Bot dinonaktifkan sementara untuk Anda.\nSilakan coba lagi dalam *{remaining} detik*."}
+                                  onChange={(e) => setSettings({ ...settings, antiSpamBlockedTemplate: e.target.value })}
+                                  className="w-full px-3 py-2 rounded-xl border border-rose-150 text-xs font-mono focus:ring-2 focus:ring-rose-400 focus:outline-hidden bg-white"
+                                  placeholder="Meneruskan balasan saat user terblokir..."
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Tampilan Panel Kustom Grup Terpilih (Sesuai mode Pengecualian / Kustom) */}
+                        {settings.antiSpamEnabled !== false && (settings.antiSpamMode === "custom" || settings.antiSpamMode === "exclude") && (
+                          <div className="border-t border-slate-100 pt-4 mt-2 grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in animate-duration-300">
+                            <div>
+                              <span className="font-bold text-xs uppercase tracking-wider text-rose-500 block mb-1">
+                                {settings.antiSpamMode === "custom" ? "Daftar Grup Dilindungi" : "Daftar Grup Yang Dikecualikan"}
+                              </span>
+                              <p className="text-[10px] text-slate-400 mb-2 leading-relaxed">
+                                {settings.antiSpamMode === "custom" 
+                                  ? "Grup dalam daftar ini AKAN dipasang pengaman spam. Grup lain dibiarkan bebas."
+                                  : "Grup dalam daftar ini TIDAK AKAN dipasang pengaman spam. Grup lain aman diawasi."}
+                              </p>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  id="anti-spam-group-input"
+                                  placeholder="Masukkan ID Group (contoh: 120363425@g.us)..."
+                                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-rose-400 focus:outline-hidden"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const input = document.getElementById('anti-spam-group-input') as HTMLInputElement;
+                                    const cleanId = input ? input.value.trim() : "";
+                                    if (!cleanId) return;
+                                    let targetId = cleanId;
+                                    if (!cleanId.endsWith("@g.us") && !cleanId.endsWith("@s.whatsapp.net")) {
+                                      if (/^\d+$/.test(cleanId) || cleanId.includes("-")) {
+                                        targetId = cleanId + "@g.us";
+                                      }
+                                    }
+                                    
+                                    if (settings.antiSpamMode === "custom") {
+                                      const current = settings.antiSpamProtectedGroups || [];
+                                      if (current.includes(targetId)) return;
+                                      setSettings({
+                                        ...settings,
+                                        antiSpamProtectedGroups: [...current, targetId]
+                                      });
+                                    } else {
+                                      const current = settings.antiSpamExcludedGroups || [];
+                                      if (current.includes(targetId)) return;
+                                      setSettings({
+                                        ...settings,
+                                        antiSpamExcludedGroups: [...current, targetId]
+                                      });
+                                    }
+                                    if (input) input.value = "";
+                                  }}
+                                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+                                >
+                                  Tambah
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Daftar ID Grup */}
+                            <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto border border-rose-50 rounded-xl p-3 bg-slate-50">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block border-b border-slate-100 pb-1 mb-1">
+                                ID Grup Terdaftar
+                              </span>
+                              {settings.antiSpamMode === "custom" ? (
+                                !(settings.antiSpamProtectedGroups?.length) ? (
+                                  <span className="text-[10px] text-slate-400 text-center py-4">Belum ada grup yang dilindungi kustom. Silakan tambahkan ID.</span>
+                                ) : (
+                                  settings.antiSpamProtectedGroups.map((groupId) => (
+                                    <div key={groupId} className="flex justify-between items-center bg-white border border-rose-100 px-3 py-1.5 rounded-lg text-xs font-mono text-slate-600">
+                                      <span className="truncate max-w-[250px]" title={groupId}>{groupId}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSettings({
+                                            ...settings,
+                                            antiSpamProtectedGroups: (settings.antiSpamProtectedGroups || []).filter(id => id !== groupId)
+                                          });
+                                        }}
+                                        className="text-rose-500 hover:text-rose-700 text-[10px] font-bold ml-2 px-1.5 py-0.5 rounded hover:bg-rose-50 uppercase tracking-tight"
+                                      >
+                                        Hapus
+                                      </button>
+                                    </div>
+                                  ))
+                                )
+                              ) : (
+                                !(settings.antiSpamExcludedGroups?.length) ? (
+                                  <span className="text-[10px] text-slate-400 text-center py-4">Belum ada grup yang dikecualikan. Silakan tambahkan ID.</span>
+                                ) : (
+                                  settings.antiSpamExcludedGroups.map((groupId) => (
+                                    <div key={groupId} className="flex justify-between items-center bg-white border border-rose-100 px-3 py-1.5 rounded-lg text-xs font-mono text-slate-600">
+                                      <span className="truncate max-w-[250px]" title={groupId}>{groupId}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSettings({
+                                            ...settings,
+                                            antiSpamExcludedGroups: (settings.antiSpamExcludedGroups || []).filter(id => id !== groupId)
+                                          });
+                                        }}
+                                        className="text-rose-500 hover:text-rose-700 text-[10px] font-bold ml-2 px-1.5 py-0.5 rounded hover:bg-rose-50 uppercase tracking-tight"
+                                      >
+                                        Hapus
+                                      </button>
+                                    </div>
+                                  ))
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                         </div>
                       </div>
 
