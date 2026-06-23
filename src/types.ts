@@ -38,6 +38,7 @@ export interface Transaction {
   buyerPhone: string;    // Nomer pembeli
   status: 'Pending' | 'Success' | 'Failed';
   timestamp: string; // ISO String
+  adminUsername?: string; // Username admin yang mencatatkan transaksi
 }
 
 export interface Category {

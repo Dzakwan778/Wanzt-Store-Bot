@@ -2,6 +2,7 @@
 // push Senin, 15 Juni 2026
 // push Selasa, 16 Juni 2026
 // push Minggu, 21 Juni 2026
+// push Selasa, 23 Juni 2026
 
 import React, { useState, useEffect, useRef } from "react";
 import { 
@@ -54,7 +55,9 @@ import {
   Users,
   ShieldAlert,
   Play,
-  Square
+  Square,
+  Eye,
+  EyeClosed
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, BotSettings, MessageLog, ConnectionStatus, BotCommand, Transaction } from "./types";
@@ -135,6 +138,7 @@ export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -160,6 +164,7 @@ export default function App() {
   const [editingAdmin, setEditingAdmin] = useState<AdminRecord | null>(null);
   const [adminFormUsername, setAdminFormUsername] = useState("");
   const [adminFormPassword, setAdminFormPassword] = useState("");
+  const [showAdminFormPassword, setShowAdminFormPassword] = useState(false);
   const [adminFormIsActive, setAdminFormIsActive] = useState(true);
   const [adminFormPermissions, setAdminFormPermissions] = useState<string[]>([
     "view_products",
@@ -450,6 +455,15 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    if (saveMessage) {
+      const timer = setTimeout(() => {
+        setSaveMessage(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [saveMessage]);
 
   // Manual Cloud Sync & Backup States
   const [isManualSyncing, setIsManualSyncing] = useState(false);
@@ -1507,7 +1521,8 @@ export default function App() {
       if (t.id === tx.id) return { 
         ...t, 
         status: "Success" as const,
-        paymentMethod: confirmPaymentMethodVal
+        paymentMethod: confirmPaymentMethodVal,
+        adminUsername: t.adminUsername || currentUser?.username || "-"
       };
       return t;
     });
@@ -1672,6 +1687,7 @@ export default function App() {
       "Harga Jual",
       "Keuntungan",
       "Metode Bayar",
+      "Admin",
       "Status"
     ];
 
@@ -1736,6 +1752,7 @@ export default function App() {
         sellingPrice,
         profit,
         tx.paymentMethod,
+        tx.adminUsername || "-",
         tx.status
       ];
 
@@ -2033,14 +2050,28 @@ export default function App() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Password Anda</label>
-              <input
-                type="password"
-                required
-                placeholder="Masukkan password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-medium"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  placeholder="Masukkan password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-250 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus:text-slate-650"
+                  aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                >
+                  {showPassword ? (
+                    <EyeClosed className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
             </div>
 
             {loginError && (
@@ -2845,8 +2876,8 @@ export default function App() {
                             <div>
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs font-bold text-slate-800">Owner Utama (wanzt)</span>
-                                <span className="text-[9px] font-bold px-1.5 py-0.1 bg-red-50 text-red-650 rounded-md border border-red-100">
-                                  Default Owner
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 bg-emerald-55 text-emerald-750 rounded-md border border-emerald-150">
+                                  Owner
                                 </span>
                               </div>
                               <p className="text-[10px] text-slate-405 mt-1">Hak akses penuh (Superuser) pemilik platform.</p>
@@ -2864,7 +2895,14 @@ export default function App() {
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-xs font-bold text-slate-800">{admin.username}</span>
                                   <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
-                                    admin.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-slate-100 text-slate-500 border border-slate-200"
+                                    admin.role === "OWNER"
+                                      ? "bg-emerald-55 text-emerald-750 border border-emerald-150"
+                                      : "bg-blue-50 text-blue-700 border border-blue-100"
+                                  }`}>
+                                    {admin.role === "OWNER" ? "Owner" : "Admin"}
+                                  </span>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
+                                    admin.isActive ? "bg-slate-50 text-slate-600 border border-slate-205" : "bg-slate-100 text-slate-500 border border-slate-200"
                                   }`}>
                                     {admin.isActive ? "Active" : "Disabled"}
                                   </span>
@@ -6753,7 +6791,10 @@ export default function App() {
                             paymentMethod: txPaymentMethod,
                             buyerPhone: txBuyerPhone,
                             status: txStatus,
-                            timestamp: finalTimestamp
+                            timestamp: finalTimestamp,
+                            adminUsername: editingTxId !== null 
+                              ? (matchedTx?.adminUsername || currentUser?.username || "-") 
+                              : (currentUser?.username || "-")
                           };
 
                           let updatedTxs = [];
@@ -7192,6 +7233,7 @@ export default function App() {
                                   <th className="py-3 px-4 text-right">Harga Asli</th>
                                   <th className="py-3 px-4 text-right">Harga Jual</th>
                                   <th className="py-3 px-4">Metode Pembayaran</th>
+                                  <th className="py-3 px-4 animate-fade-in">Admin</th>
                                   <th className="py-3 px-4 text-center">Status</th>
                                   <th className="py-3 px-4 text-center">Aksi Pengelola</th>
                                 </tr>
@@ -7262,6 +7304,9 @@ export default function App() {
                                   </td>
                                   <td className="py-3 px-4 font-medium text-slate-600">
                                     {tx.paymentMethod}
+                                  </td>
+                                  <td className="py-3 px-4 font-medium text-slate-600 font-mono">
+                                    {tx.adminUsername || "-"}
                                   </td>
                                   <td className="py-3 px-4 text-center">
                                     <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-bold border ${
@@ -8911,14 +8956,28 @@ export default function App() {
                     <label className="text-[10px] font-bold text-slate-700 block mb-1.5 uppercase tracking-wider">
                       Password Login:
                     </label>
-                    <input
-                      type="password"
-                      required={!editingAdmin}
-                      placeholder={editingAdmin ? "Isi bila ingin mengubah password saja" : "Masukkan password akses"}
-                      value={adminFormPassword}
-                      onChange={(e) => setAdminFormPassword(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-205 text-xs focus:ring-2 focus:ring-slate-440 focus:outline-none font-semibold text-slate-805"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showAdminFormPassword ? "text" : "password"}
+                        required={!editingAdmin}
+                        placeholder={editingAdmin ? "Isi bila ingin mengubah password saja" : "Masukkan password akses"}
+                        value={adminFormPassword}
+                        onChange={(e) => setAdminFormPassword(e.target.value)}
+                        className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-205 text-xs focus:ring-2 focus:ring-slate-440 focus:outline-none font-semibold text-slate-805"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminFormPassword(!showAdminFormPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
+                        aria-label={showAdminFormPassword ? "Sembunyikan password" : "Tampilkan password"}
+                      >
+                        {showAdminFormPassword ? (
+                          <EyeClosed className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl">
