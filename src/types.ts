@@ -123,6 +123,8 @@ export interface BotSettings {
   antiSpamCooldownSec?: number;
   antiSpamWarningTemplate?: string;
   antiSpamBlockedTemplate?: string;
+  antiSpamDuplicateReasonTemplate?: string;
+  antiSpamFrequencyReasonTemplate?: string;
   antiSpamProtectedGroups?: string[];
   antiSpamExcludedGroups?: string[];
 }

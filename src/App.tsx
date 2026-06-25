@@ -290,6 +290,8 @@ export default function App() {
     antiSpamCooldownSec: 300,
     antiSpamWarningTemplate: "⚠️ *SISTEM ANTI-SPAM*\n\nAnda dideteksi melakukan spamming ({reason}).\n*Bot ditangguhkan sementara selama {cooldown} detik* untuk menjaga performa server.\nSilakan coba lagi beberapa saat lagi!",
     antiSpamBlockedTemplate: "🛡️ *SISTEM ANTI-SPAM*\n\nMaaf, Anda dideteksi melakukan spamming. Bot dinonaktifkan sementara untuk Anda.\nSilakan coba lagi dalam *{remaining} detik*.",
+    antiSpamDuplicateReasonTemplate: "mengirimkan pesan yang sama sebanyak {limit} kali berturut-turut",
+    antiSpamFrequencyReasonTemplate: "mengirimkan terlalu banyak pesan ({limit} pesan dalam 10 detik)",
     antiSpamProtectedGroups: [],
     antiSpamExcludedGroups: []
   });
@@ -4553,12 +4555,30 @@ export default function App() {
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="p-6"
+                  className="p-6 pb-24"
                 >
-                  <div className="mb-6 flex justify-between items-center">
+                  <div className="mb-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-slate-100 pb-4">
                     <div>
                       <h4 className="font-bold text-slate-900 text-base">Autoreply Template Editor</h4>
                       <p className="text-xs text-slate-500">Sesuaikan sapaan toko, tata letak menu katalog, dan format balasan detail produk.</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fetchDatabase()}
+                        className="px-3 py-2 rounded-xl border border-slate-200 text-slate-500 font-semibold text-xs cursor-pointer hover:bg-slate-50 transition-colors"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveDb(products, settings)}
+                        disabled={isSavingDb}
+                        className="px-4.5 py-2 rounded-xl bg-slate-900 border border-slate-900 hover:bg-slate-850 text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition-all disabled:opacity-50"
+                      >
+                        <Save className="w-4 h-4" />
+                        {isSavingDb ? "Menyimpan..." : "Simpan Semua"}
+                      </button>
                     </div>
                   </div>
 
@@ -5338,12 +5358,16 @@ export default function App() {
                                 />
                               </div>
                             </div>
-                                      {/* Hak Akses & Keamanan Command */}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Hak Akses & Keamanan Command */}
                       <div className="p-4 rounded-2xl border border-slate-100 bg-white shadow-xs space-y-3 animate-fade-in animate-duration-200">
                         <span className="font-bold text-xs uppercase tracking-wider text-slate-500 block">Hak Akses & Keamanan Command</span>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-707 block">Owner Only Command Message</label>
+                            <label className="text-xs font-bold text-slate-700 block">Owner Only Command Message</label>
                             <p className="text-[10px] text-slate-400 mb-1">Diberikan saat nomor non-owner mencoba mengakses command khusus Owner (Cth: /idgrup, /bcadd).</p>
                             <textarea
                               rows={3}
@@ -5355,7 +5379,7 @@ export default function App() {
                             <span className="text-[9px] text-slate-400">Tag didukung: <code className="font-bold font-mono bg-slate-50 text-slate-600 px-1 rounded">&#123;storeName&#125;</code></span>
                           </div>
                           <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-707 block">Restriksi Khusus Admin / Owner</label>
+                            <label className="text-xs font-bold text-slate-700 block">Restriksi Khusus Admin / Owner</label>
                             <p className="text-[10px] text-slate-400 mb-1">Diberikan saat nomor non-admin mencoba mengakses command khusus Admin (Cth: /kick, /add, /open, /close).</p>
                             <textarea
                               rows={3}
@@ -5628,7 +5652,7 @@ export default function App() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           {/* Close */}
                           <div className="space-y-3">
-                            <span className="font-bold text-[10px] text-slate-500 uppercase tracking-wide block border-b border-slate-105 pb-1">Mekanisme Gerbang Tutup (/close)</span>
+                            <span className="font-bold text-[10px] text-slate-500 uppercase tracking-wide block border-b border-slate-100 pb-1">Mekanisme Gerbang Tutup (/close)</span>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-0.5">
                                 <label className="text-[9px] font-semibold text-slate-600 block">Close Diluar Grup</label>
@@ -5663,7 +5687,7 @@ export default function App() {
 
                           {/* Open */}
                           <div className="space-y-3">
-                            <span className="font-bold text-[10px] text-slate-500 uppercase tracking-wide block border-b border-slate-105 pb-1">Mekanisme Gerbang Buka (/open)</span>
+                            <span className="font-bold text-[10px] text-slate-500 uppercase tracking-wide block border-b border-slate-100 pb-1">Mekanisme Gerbang Buka (/open)</span>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-0.5">
                                 <label className="text-[9px] font-semibold text-slate-600 block">Open Diluar Grup</label>
@@ -5780,31 +5804,59 @@ export default function App() {
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <label className="text-[10px] font-bold text-rose-700 block mb-1 flex justify-between">
-                                  <span>Notifikasi Blokir Pertama</span>
-                                </label>
-                                <textarea
-                                  rows={5}
-                                  value={settings.antiSpamWarningTemplate || "⚠️ *SISTEM ANTI-SPAM*\n\nAnda dideteksi melakukan spamming ({reason}).\n*Bot ditangguhkan sementara selama {cooldown} detik* untuk menjaga performa server.\nSilakan coba lagi beberapa saat lagi!"}
-                                  onChange={(e) => setSettings({ ...settings, antiSpamWarningTemplate: e.target.value })}
-                                  className="w-full px-3 py-2 rounded-xl border border-rose-150 text-xs font-mono focus:ring-2 focus:ring-rose-400 focus:outline-hidden bg-white"
-                                  placeholder="Tulis peringatan spam..."
-                                />
-                              </div>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                               <div>
+                                 <label className="text-[10px] font-bold text-rose-700 block mb-1 flex justify-between">
+                                   <span>Notifikasi Blokir Pertama</span>
+                                 </label>
+                                 <textarea
+                                   rows={5}
+                                   value={settings.antiSpamWarningTemplate || "⚠️ *SISTEM ANTI-SPAM*\n\nAnda dideteksi melakukan spamming ({reason}).\n*Bot ditangguhkan sementara selama {cooldown} detik* untuk menjaga performa server.\nSilakan coba lagi beberapa saat lagi!"}
+                                   onChange={(e) => setSettings({ ...settings, antiSpamWarningTemplate: e.target.value })}
+                                   className="w-full px-3 py-2 rounded-xl border border-rose-150 text-xs font-mono focus:ring-2 focus:ring-rose-400 focus:outline-hidden bg-white"
+                                   placeholder="Tulis peringatan spam..."
+                                 />
+                               </div>
 
-                              <div>
-                                <label className="text-[10px] font-bold text-rose-700 block mb-1">Notifikasi Selama Blokir Aktif</label>
-                                <textarea
-                                  rows={5}
-                                  value={settings.antiSpamBlockedTemplate || "🛡️ *SISTEM ANTI-SPAM*\n\nMaaf, Anda dideteksi melakukan spamming. Bot dinonaktifkan sementara untuk Anda.\nSilakan coba lagi dalam *{remaining} detik*."}
-                                  onChange={(e) => setSettings({ ...settings, antiSpamBlockedTemplate: e.target.value })}
-                                  className="w-full px-3 py-2 rounded-xl border border-rose-150 text-xs font-mono focus:ring-2 focus:ring-rose-400 focus:outline-hidden bg-white"
-                                  placeholder="Meneruskan balasan saat user terblokir..."
-                                />
-                              </div>
-                            </div>
+                               <div>
+                                 <label className="text-[10px] font-bold text-rose-700 block mb-1">Notifikasi Selama Blokir Aktif</label>
+                                 <textarea
+                                   rows={5}
+                                   value={settings.antiSpamBlockedTemplate || "🛡️ *SISTEM ANTI-SPAM*\n\nMaaf, Anda dideteksi melakukan spamming. Bot dinonaktifkan sementara untuk Anda.\nSilakan coba lagi dalam *{remaining} detik*."}
+                                   onChange={(e) => setSettings({ ...settings, antiSpamBlockedTemplate: e.target.value })}
+                                   className="w-full px-3 py-2 rounded-xl border border-rose-150 text-xs font-mono focus:ring-2 focus:ring-rose-400 focus:outline-hidden bg-white"
+                                   placeholder="Meneruskan balasan saat user terblokir..."
+                                 />
+                               </div>
+                             </div>
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                               <div>
+                                 <label className="text-[10px] font-bold text-rose-700 block mb-1 flex justify-between">
+                                   <span>Format Alasan Spam Duplikat</span>
+                                 </label>
+                                 <textarea
+                                   rows={2}
+                                   value={settings.antiSpamDuplicateReasonTemplate || "mengirimkan pesan yang sama sebanyak {limit} kali berturut-turut"}
+                                   onChange={(e) => setSettings({ ...settings, antiSpamDuplicateReasonTemplate: e.target.value })}
+                                   className="w-full px-3 py-2 rounded-xl border border-rose-150 text-xs font-mono focus:ring-2 focus:ring-rose-400 focus:outline-hidden bg-white"
+                                   placeholder="Format alasan jika duplikat..."
+                                 />
+                                 <span className="text-[8px] text-slate-400 block mt-0.5">Disisipkan pada tag <code className="font-bold">&#123;reason&#125;</code> jika mendeteksi pesan berulang. Mendukung tag: <code className="font-bold">&#123;limit&#125;</code></span>
+                               </div>
+
+                               <div>
+                                 <label className="text-[10px] font-bold text-rose-700 block mb-1">Format Alasan Spam Frekuensi Tinggi</label>
+                                 <textarea
+                                   rows={2}
+                                   value={settings.antiSpamFrequencyReasonTemplate || "mengirimkan terlalu banyak pesan ({limit} pesan dalam 10 detik)"}
+                                   onChange={(e) => setSettings({ ...settings, antiSpamFrequencyReasonTemplate: e.target.value })}
+                                   className="w-full px-3 py-2 rounded-xl border border-rose-150 text-xs font-mono focus:ring-2 focus:ring-rose-400 focus:outline-hidden bg-white"
+                                   placeholder="Format alasan jika terlalu cepat..."
+                                 />
+                                 <span className="text-[8px] text-slate-400 block mt-0.5">Disisipkan pada tag <code className="font-bold">&#123;reason&#125;</code> jika mengirim terlalu cepat. Mendukung tag: <code className="font-bold">&#123;limit&#125;</code></span>
+                               </div>
+                             </div>
                           </div>
                         </div>
 
@@ -5917,9 +5969,6 @@ export default function App() {
                             </div>
                           </div>
                         )}
-                      </div>
-                    </div>
-                        </div>
                       </div>
 
                     {/* Save actions */}
@@ -9055,21 +9104,67 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* FLOATING SCROLL TO TOP BUTTON */}
+      {/* FLOATING SCROLL TO TOP & QUICK SAVE BAR */}
       <AnimatePresence>
         {showScrollTop && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 20 }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="fixed bottom-6 right-6 p-3 rounded-full bg-slate-900 border border-slate-800 text-white shadow-lg cursor-pointer z-40 hover:bg-slate-850 transition-all flex items-center justify-center"
-            title="Kembali ke atas"
-          >
-            <ArrowUp className="w-5 h-5" />
-          </motion.button>
+          activeTab === "settings" ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 16 }}
+              transition={{ type: "spring", stiffness: 380, damping: 26 }}
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-6 z-40 flex items-center gap-2.5 bg-slate-900/95 backdrop-blur-md px-3.5 py-2.5 rounded-2xl shadow-xl border border-slate-800 text-white whitespace-nowrap"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="flex flex-col pr-2.5 border-r border-slate-800/80">
+                  <span className="text-[9px] text-slate-400 font-bold tracking-wide uppercase">Quick Save</span>
+                  <span className="text-[8px] text-slate-500 font-medium">Bebas Scroll</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fetchDatabase()}
+                  className="px-2.5 py-1.5 rounded-xl hover:bg-slate-800 text-slate-300 font-bold text-xs transition-all cursor-pointer"
+                  title="Batalkan perubahan"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveDb(products, settings)}
+                  disabled={isSavingDb}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {isSavingDb ? "Simpan" : "Simpan"}
+                </button>
+              </div>
+              
+              <div className="h-6 w-px bg-slate-800/80 mx-1" />
+
+              <button
+                type="button"
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                className="p-2 rounded-xl hover:bg-slate-850 text-white transition-all flex items-center justify-center cursor-pointer"
+                title="Kembali ke atas"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+            </motion.div>
+          ) : (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 16 }}
+              transition={{ type: "spring", stiffness: 380, damping: 26 }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="fixed bottom-6 right-6 p-3 rounded-full bg-slate-900 border border-slate-800 text-white shadow-lg cursor-pointer z-40 hover:bg-slate-850 transition-all flex items-center justify-center"
+              title="Kembali ke atas"
+            >
+              <ArrowUp className="w-5 h-5" />
+            </motion.button>
+          )
         )}
       </AnimatePresence>
     </div>

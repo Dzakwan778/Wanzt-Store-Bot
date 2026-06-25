@@ -1220,14 +1220,14 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
         tracker.lastWarnedAt = now;
 
         const reason = isDuplicateSpam 
-          ? `mengirimkan pesan yang sama sebanyak {limit} kali berturut-turut` 
-          : `mengirimkan terlalu banyak pesan ({limit} pesan dalam 10 detik)`;
+          ? (settings.antiSpamDuplicateReasonTemplate || `mengirimkan pesan yang sama sebanyak {limit} kali berturut-turut`) 
+          : (settings.antiSpamFrequencyReasonTemplate || `mengirimkan terlalu banyak pesan ({limit} pesan dalam 10 detik)`);
 
         let cooldownWarning = settings.antiSpamWarningTemplate || `⚠️ *SISTEM ANTI-SPAM*\n\nAnda dideteksi melakukan spamming ({reason}).\n*Bot ditangguhkan sementara selama {cooldown} detik* untuk menjaga performa server.\nSilakan coba lagi beberapa saat lagi!`;
         cooldownWarning = cooldownWarning
+          .replace(/{reason}/g, reason)
           .replace(/{limit}/g, String(limit))
-          .replace(/{cooldown}/g, String(cooldownSec))
-          .replace(/{reason}/g, reason);
+          .replace(/{cooldown}/g, String(cooldownSec));
 
         // Send the WhatsApp notification immediately as a reply (reply last message)
         if (!isSimulation && this.sock && this.status === "connected") {
@@ -2869,10 +2869,7 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
                 const blockLines: string[] = [];
                 blockLines.push(`*${cat.toUpperCase()}*`);
                 list.forEach((v: any) => {
-                  const subName = v.name;
-                  const displayName = subName.toLowerCase().includes(matchedProduct.name.toLowerCase())
-                    ? subName
-                    : `${matchedProduct.name} ${subName}`;
+                  const displayName = v.name;
                   blockLines.push(`📍\n└ ${displayName} : *Rp${v.price.toLocaleString("id-ID")}*`);
                 });
                 blocks.push(blockLines.join("\n"));
@@ -2884,10 +2881,7 @@ Silakan hubungi owner untuk keperluan bisnis, keluhan transaksi, atau mendaftar 
               const blockLines: string[] = [];
               blockLines.push(`*LAINNYA*`);
               uncategorized.forEach((v: any) => {
-                const subName = v.name;
-                const displayName = subName.toLowerCase().includes(matchedProduct.name.toLowerCase())
-                  ? subName
-                  : `${matchedProduct.name} ${subName}`;
+                const displayName = v.name;
                 blockLines.push(`📍\n└ ${displayName} : *Rp${v.price.toLocaleString("id-ID")}*`);
               });
               blocks.push(blockLines.join("\n"));
